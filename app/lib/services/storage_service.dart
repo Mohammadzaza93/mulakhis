@@ -34,6 +34,12 @@ class StorageService {
     await _write([item, ...items]);
   }
 
+  /// يستبدل عنصراً موجوداً (بالمعرّف) محافظاً على ترتيبه.
+  Future<void> update(SummaryItem item) async {
+    final items = await load();
+    await _write([for (final e in items) e.id == item.id ? item : e]);
+  }
+
   Future<void> remove(String id) async {
     final items = await load();
     await _write(items.where((e) => e.id != id).toList());

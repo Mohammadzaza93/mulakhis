@@ -12,8 +12,9 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 import media  # noqa: E402
 import security  # noqa: E402
+import study  # noqa: E402
 from main import app  # noqa: E402
-from summarizer import parse_json_reply, split_text  # noqa: E402
+from summarizer import SummarizerError, parse_json_reply, split_text  # noqa: E402
 
 SAMPLE = "الخلية هي الوحدة الأساسية للحياة. تحتوي الخلية على نواة. تنتج الميتوكوندريا الطاقة."
 PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 32
@@ -268,3 +269,96 @@ def test_parse_json_reply():
     raw = '```json\n{"title":"ت","summary":"م","key_points":["أ"],"terms":[{"term":"ك","definition":"ع"}]}\n```'
     out = parse_json_reply(raw)
     assert out["title"] == "ت" and out["terms"][0]["term"] == "ك"
+
+
+# ---------- المراجعة: بطاقات واختبارات ----------
+STUDY_BODY = {
+    "summary": "الخلية هي الوحدة الأساسية للحياة. تنتج الميتوكوندريا الطاقة. تحتوي الخلية على نواة تحمل المادة الوراثية.",
+    "key_points": ["الخلية وحدة الحياة", "الميتوكوندريا مصدر الطاقة"],
+    "terms": [{"term": "النواة", "definition": "تحمل المادة الوراثية"}],
+}
+
+
+def test_study_requires_token(client):
+    assert client.post("/study/generate", json=STUDY_BODY).status_code == 401
+
+
+def test_study_generate_ok_and_consumes_one_use(client, auth):
+    headers, _ = auth
+    r = client.post("/study/generate", json=STUDY_BODY, headers=headers)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["flashcards"] and body["quiz"]
+    for q in body["quiz"]:
+        assert len(q["options"]) == 4 and 0 <= q["answer_index"] < 4
+    assert client.get("/me", headers=headers).json()["used"] == 1
+
+
+@pytest.mark.parametrize(
+    "patch",
+    [{"summary": ""}, {"cards": 0}, {"cards": study.MAX_CARDS + 1}, {"questions": 0}, {"questions": study.MAX_QUESTIONS + 1}],
+)
+def test_study_input_boundaries(client, auth, patch):
+    r = client.post("/study/generate", json={**STUDY_BODY, **patch}, headers=auth[0])
+    assert r.status_code == 422
+    assert client.get("/me", headers=auth[0]).json()["used"] == 0
+
+
+def test_study_respects_quota(client, auth):
+    headers, _ = auth
+    for _ in range(security.PLAN_LIMITS["free"]):
+        assert client.post("/study/generate", json=STUDY_BODY, headers=headers).status_code == 200
+    assert client.post("/study/generate", json=STUDY_BODY, headers=headers).status_code == 402
+
+
+def test_study_upstream_failure_is_502_and_free(client, auth, monkeypatch):
+    def boom(*a, **k):
+        raise SummarizerError("فشل")
+
+    monkeypatch.setattr(study, "generate_study", boom)
+    headers, _ = auth
+    assert client.post("/study/generate", json=STUDY_BODY, headers=headers).status_code == 502
+    assert client.get("/me", headers=headers).json()["used"] == 0
+
+
+def _q(**over):
+    base = {"question": "ما هي؟", "options": ["أ", "ب", "ج", "د"], "answer_index": 1, "explanation": "لأن"}
+    base.update(over)
+    return base
+
+
+def test_validate_study_drops_bad_items_keeps_good():
+    data = {
+        "flashcards": [{"front": "س", "back": "ج"}, {"front": "", "back": "x"}, "junk", {"front": "فقط"}],
+        "quiz": [
+            _q(),
+            _q(options=["أ", "ب", "ج"]),  # ثلاثة خيارات
+            _q(options=["أ", "أ", "ج", "د"]),  # مكرر
+            _q(answer_index=4),  # خارج النطاق
+            _q(answer_index=-1),
+            _q(answer_index=True),  # bool ليس رقماً صالحاً
+            _q(answer_index="1"),
+            _q(question="  "),
+        ],
+    }
+    out = study.validate_study(data, 10, 10)
+    assert out["flashcards"] == [{"front": "س", "back": "ج"}]
+    assert len(out["quiz"]) == 1 and out["quiz"][0]["answer_index"] == 1
+
+
+def test_validate_study_truncates_and_fails_when_empty():
+    cards = [{"front": f"س{i}", "back": "ج"} for i in range(20)]
+    assert len(study.validate_study({"flashcards": cards}, 5, 5)["flashcards"]) == 5
+    with pytest.raises(SummarizerError):
+        study.validate_study({"flashcards": [], "quiz": [_q(answer_index=9)]}, 5, 5)
+    with pytest.raises(SummarizerError):
+        study.validate_study({}, 5, 5)
+
+
+def test_parse_json_object_rejects_non_object():
+    from summarizer import parse_json_object
+
+    with pytest.raises(SummarizerError):
+        parse_json_object("[1, 2, 3]")
+    with pytest.raises(SummarizerError):
+        parse_json_object("لا يوجد json")

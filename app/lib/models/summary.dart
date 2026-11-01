@@ -1,3 +1,5 @@
+import 'study.dart';
+
 class Term {
   final String term;
   final String definition;
@@ -20,6 +22,9 @@ class SummaryItem {
   /// النص المستخرج من الصوت أو الصور (إن وُجد).
   final String? transcript;
 
+  /// مواد المراجعة (بطاقات واختبار) بعد توليدها لأول مرة.
+  final StudyMaterial? study;
+
   const SummaryItem({
     required this.id,
     required this.title,
@@ -29,7 +34,20 @@ class SummaryItem {
     required this.language,
     required this.createdAt,
     this.transcript,
+    this.study,
   });
+
+  SummaryItem withStudy(StudyMaterial material) => SummaryItem(
+        id: id,
+        title: title,
+        summary: summary,
+        keyPoints: keyPoints,
+        terms: terms,
+        language: language,
+        createdAt: createdAt,
+        transcript: transcript,
+        study: material,
+      );
 
   /// يبني عنصراً من رد الخادم.
   factory SummaryItem.fromApi(Map<String, dynamic> j, String language) {
@@ -56,6 +74,7 @@ class SummaryItem {
         'language': language,
         'createdAt': createdAt.toIso8601String(),
         'transcript': transcript,
+        'study': study?.toJson(),
       };
 
   factory SummaryItem.fromJson(Map<String, dynamic> j) => SummaryItem(
@@ -69,6 +88,9 @@ class SummaryItem {
         language: j['language'] as String? ?? 'ar',
         createdAt: DateTime.tryParse(j['createdAt'] as String? ?? '') ?? DateTime.now(),
         transcript: j['transcript'] as String?,
+        study: j['study'] is Map
+            ? StudyMaterial.fromJson(Map<String, dynamic>.from(j['study'] as Map))
+            : null,
       );
 
   /// نص جاهز للنسخ أو المشاركة.

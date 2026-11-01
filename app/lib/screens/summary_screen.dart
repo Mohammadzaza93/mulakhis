@@ -2,15 +2,32 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../models/summary.dart';
+import '../services/storage_service.dart';
+import 'study_screen.dart';
 
-class SummaryScreen extends StatelessWidget {
+class SummaryScreen extends StatefulWidget {
   final SummaryItem item;
   const SummaryScreen({super.key, required this.item});
+
+  @override
+  State<SummaryScreen> createState() => _SummaryScreenState();
+}
+
+class _SummaryScreenState extends State<SummaryScreen> {
+  late SummaryItem item = widget.item;
 
   void _copy(BuildContext context) {
     Clipboard.setData(ClipboardData(text: item.toPlainText()));
     ScaffoldMessenger.of(context)
         .showSnackBar(const SnackBar(content: Text('تم نسخ الملخص')));
+  }
+
+  /// بعد العودة من المراجعة نقرأ العنصر المحفوظ، فإن وُلّدت المواد لا تُولَّد ثانيةً.
+  Future<void> _openStudy() async {
+    await Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => StudyScreen(item: item)));
+    final saved = (await StorageService().load()).where((e) => e.id == item.id);
+    if (mounted && saved.isNotEmpty) setState(() => item = saved.first);
   }
 
   @override
@@ -37,6 +54,11 @@ class SummaryScreen extends StatelessWidget {
               if (hasTranscript) const Tab(text: 'النص الأصلي'),
             ],
           ),
+        ),
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: _openStudy,
+          icon: const Icon(Icons.quiz_outlined),
+          label: Text(item.study == null ? 'راجع (بطاقات واختبار)' : 'راجع'),
         ),
         body: TabBarView(children: [
           _SummaryTab(text: item.summary),

@@ -57,7 +57,8 @@ def split_text(text: str, size: int = CHUNK_CHARS) -> List[str]:
     return chunks
 
 
-def parse_json_reply(raw: str) -> Dict[str, Any]:
+def parse_json_object(raw: str) -> Dict[str, Any]:
+    """يستخرج كائن JSON من رد النموذج حتى لو أحاطه بعلامات أو شرح."""
     raw = raw.strip()
     raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw)
     start, end = raw.find("{"), raw.rfind("}")
@@ -67,6 +68,13 @@ def parse_json_reply(raw: str) -> Dict[str, Any]:
         data = json.loads(raw[start : end + 1])
     except json.JSONDecodeError as e:
         raise SummarizerError("رد النموذج ليس JSON صالحاً") from e
+    if not isinstance(data, dict):
+        raise SummarizerError("رد النموذج ليس بالشكل المتوقع")
+    return data
+
+
+def parse_json_reply(raw: str) -> Dict[str, Any]:
+    data = parse_json_object(raw)
     return {
         "title": str(data.get("title", "")).strip() or "ملخص جديد",
         "summary": str(data.get("summary", "")).strip(),

@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 
 import '../config.dart';
+import '../models/study.dart';
 import '../models/summary.dart';
 import '../models/user.dart';
 import 'session.dart';
@@ -94,6 +95,26 @@ class ApiService {
         [for (final e in images) http.MultipartFile.fromBytes('files', e.value, filename: e.key)],
         language,
       );
+
+  Future<StudyMaterial> generateStudy(SummaryItem item) async {
+    final j = await _send(() => http
+        .post(
+          _uri('/study/generate'),
+          headers: {..._authHeaders, 'Content-Type': 'application/json; charset=utf-8'},
+          body: jsonEncode({
+            'summary': item.summary,
+            'key_points': item.keyPoints,
+            'terms': item.terms.map((t) => t.toJson()).toList(),
+            'language': item.language,
+          }),
+        )
+        .timeout(_timeout));
+    final material = StudyMaterial.fromJson(j);
+    if (material.isEmpty) {
+      throw const ApiException('لم تنجح الخدمة في إعداد المراجعة، حاول مرة أخرى.');
+    }
+    return material;
+  }
 
   Future<SummaryItem> _upload(
       String path, List<http.MultipartFile> files, String language) async {

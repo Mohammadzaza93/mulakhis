@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 import db
 import media
 import security
+import study
 from extract import ExtractError, extract_text
 from summarizer import SummarizerError, summarize
 
@@ -185,6 +186,52 @@ async def summarize_images(
     except SummarizerError as e:
         raise HTTPException(status_code=502, detail=str(e))
     return await run_in_threadpool(_run, user, text, language, text)
+
+
+# ---------- المراجعة: بطاقات واختبارات ----------
+class StudyRequest(BaseModel):
+    summary: str = Field(min_length=1, max_length=20000)
+    key_points: List[str] = Field(default_factory=list, max_length=30)
+    terms: List[Term] = Field(default_factory=list, max_length=30)
+    language: str = "ar"
+    cards: int = Field(default=8, ge=1, le=study.MAX_CARDS)
+    questions: int = Field(default=5, ge=1, le=study.MAX_QUESTIONS)
+
+
+class Flashcard(BaseModel):
+    front: str
+    back: str
+
+
+class QuizQuestion(BaseModel):
+    question: str
+    options: List[str]
+    answer_index: int
+    explanation: str = ""
+
+
+class StudyResult(BaseModel):
+    flashcards: List[Flashcard]
+    quiz: List[QuizQuestion]
+
+
+@app.post("/study/generate", response_model=StudyResult)
+def generate_study(req: StudyRequest, user=Depends(security.current_user)):
+    """يحتسب كملخص واحد من الحصة الشهرية، ولا يُحتسب إلا عند النجاح."""
+    security.require_quota(user)
+    parts = [req.summary]
+    if req.key_points:
+        parts.append("النقاط الرئيسية:\n" + "\n".join(f"- {p}" for p in req.key_points))
+    if req.terms:
+        parts.append("المصطلحات:\n" + "\n".join(f"- {t.term}: {t.definition}" for t in req.terms))
+    try:
+        data = study.generate_study("\n\n".join(parts), req.language, req.cards, req.questions)
+    except SummarizerError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=502, detail="تعذّر الاتصال بخدمة الذكاء الاصطناعي، حاول لاحقاً")
+    db.add_usage(user["id"])
+    return data
 
 
 # ---------- الاشتراكات (RevenueCat) ----------
