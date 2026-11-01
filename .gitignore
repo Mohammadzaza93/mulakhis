@@ -7,3 +7,5 @@ __pycache__/
 build/
 .flutter-plugins*
 .packages
+*.db
+*.sqlite3

@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../models/summary.dart';
+import '../services/api_service.dart';
+import '../services/purchase_service.dart';
+import '../services/session.dart';
 import '../services/storage_service.dart';
+import 'login_screen.dart';
 import 'new_summary_screen.dart';
+import 'paywall_screen.dart';
 import 'summary_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -25,11 +30,25 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _reload() async {
     final items = await _storage.load();
     if (mounted) setState(() => _items = items);
+    try {
+      await ApiService().fetchMe();
+      if (mounted) setState(() {});
+    } catch (_) {
+      // بدون اتصال: نعرض آخر قيمة معروفة
+    }
   }
 
   Future<void> _open(Widget screen) async {
     await Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
     _reload();
+  }
+
+  Future<void> _logout() async {
+    await PurchaseService.logOut();
+    await Session.I.clear();
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginScreen()), (_) => false);
   }
 
   Future<void> _delete(SummaryItem item) async {
@@ -53,8 +72,36 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final items = _items;
+    final user = Session.I.user;
     return Scaffold(
-      appBar: AppBar(title: const Text('مُلخِّص')),
+      appBar: AppBar(
+        title: const Text('مُلخِّص'),
+        actions: [
+          if (user != null)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(end: 4),
+              child: ActionChip(
+                avatar: Icon(user.isPro ? Icons.workspace_premium : Icons.bolt, size: 18),
+                label: Text(user.isPro ? 'Pro · ${user.remaining}' : '${user.remaining}/${user.limit}'),
+                tooltip: user.isPro ? 'اشتراكك فعّال' : 'ملخصات متبقية هذا الشهر',
+                onPressed: user.isPro ? null : () => _open(const PaywallScreen()),
+              ),
+            ),
+          PopupMenuButton<String>(
+            onSelected: (v) {
+              if (v == 'logout') _logout();
+              if (v == 'plan') _open(const PaywallScreen());
+            },
+            itemBuilder: (_) => [
+              if (user != null)
+                PopupMenuItem(enabled: false, child: Text(user.email)),
+              if (user != null && !user.isPro)
+                const PopupMenuItem(value: 'plan', child: Text('الاشتراك')),
+              const PopupMenuItem(value: 'logout', child: Text('تسجيل الخروج')),
+            ],
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _open(const NewSummaryScreen()),
         icon: const Icon(Icons.add),
@@ -87,10 +134,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: ListTile(
                           contentPadding:
                               const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                          title: Text(item.title,
-                              maxLines: 1, overflow: TextOverflow.ellipsis),
-                          subtitle: Text(item.summary,
-                              maxLines: 2, overflow: TextOverflow.ellipsis),
+                          title: Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                          subtitle:
+                              Text(item.summary, maxLines: 2, overflow: TextOverflow.ellipsis),
                           trailing: Text(_formatDate(item.createdAt),
                               style: Theme.of(context).textTheme.bodySmall),
                           onTap: () => _open(SummaryScreen(item: item)),
@@ -119,11 +165,10 @@ class _EmptyState extends StatelessWidget {
           children: [
             Icon(Icons.auto_stories_outlined, size: 64, color: scheme.primary),
             const SizedBox(height: 16),
-            Text('لا توجد ملخصات بعد',
-                style: Theme.of(context).textTheme.titleMedium),
+            Text('لا توجد ملخصات بعد', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             Text(
-              'ارفع ملف PDF أو Word أو الصق نص محاضرتك، وسيجهّز لك التطبيق ملخصاً ونقاطاً رئيسية.',
+              'سجّل محاضرتك، أو صوّر صفحات، أو ارفع ملف PDF أو Word، وسيجهّز لك التطبيق ملخصاً ونقاطاً رئيسية.',
               textAlign: TextAlign.center,
               style: Theme.of(context)
                   .textTheme

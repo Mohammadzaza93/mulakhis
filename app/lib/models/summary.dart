@@ -17,6 +17,9 @@ class SummaryItem {
   final String language;
   final DateTime createdAt;
 
+  /// النص المستخرج من الصوت أو الصور (إن وُجد).
+  final String? transcript;
+
   const SummaryItem({
     required this.id,
     required this.title,
@@ -25,6 +28,7 @@ class SummaryItem {
     required this.terms,
     required this.language,
     required this.createdAt,
+    this.transcript,
   });
 
   /// يبني عنصراً من رد الخادم.
@@ -39,6 +43,7 @@ class SummaryItem {
           .toList(),
       language: language,
       createdAt: DateTime.now(),
+      transcript: j['transcript'] as String?,
     );
   }
 
@@ -50,6 +55,7 @@ class SummaryItem {
         'terms': terms.map((t) => t.toJson()).toList(),
         'language': language,
         'createdAt': createdAt.toIso8601String(),
+        'transcript': transcript,
       };
 
   factory SummaryItem.fromJson(Map<String, dynamic> j) => SummaryItem(
@@ -62,6 +68,7 @@ class SummaryItem {
             .toList(),
         language: j['language'] as String? ?? 'ar',
         createdAt: DateTime.tryParse(j['createdAt'] as String? ?? '') ?? DateTime.now(),
+        transcript: j['transcript'] as String?,
       );
 
   /// نص جاهز للنسخ أو المشاركة.

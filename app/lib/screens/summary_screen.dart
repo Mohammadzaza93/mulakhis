@@ -15,8 +15,9 @@ class SummaryScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasTranscript = (item.transcript ?? '').trim().isNotEmpty;
     return DefaultTabController(
-      length: 3,
+      length: hasTranscript ? 4 : 3,
       child: Scaffold(
         appBar: AppBar(
           title: Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -27,16 +28,21 @@ class SummaryScreen extends StatelessWidget {
               onPressed: () => _copy(context),
             ),
           ],
-          bottom: const TabBar(tabs: [
-            Tab(text: 'الملخص'),
-            Tab(text: 'النقاط'),
-            Tab(text: 'المصطلحات'),
-          ]),
+          bottom: TabBar(
+            isScrollable: hasTranscript,
+            tabs: [
+              const Tab(text: 'الملخص'),
+              const Tab(text: 'النقاط'),
+              const Tab(text: 'المصطلحات'),
+              if (hasTranscript) const Tab(text: 'النص الأصلي'),
+            ],
+          ),
         ),
         body: TabBarView(children: [
           _SummaryTab(text: item.summary),
           _PointsTab(points: item.keyPoints),
           _TermsTab(terms: item.terms),
+          if (hasTranscript) _SummaryTab(text: item.transcript!),
         ]),
       ),
     );
