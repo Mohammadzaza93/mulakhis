@@ -6,3 +6,4 @@ python-docx
 anthropic
 pyjwt
 httpx
+cryptography
