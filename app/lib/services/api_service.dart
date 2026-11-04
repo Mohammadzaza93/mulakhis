@@ -27,13 +27,15 @@ class ApiService {
   static const _shortTimeout = Duration(seconds: 30);
 
   Map<String, String> get _authHeaders => {
-        if (Session.I.token != null) 'Authorization': 'Bearer ${Session.I.token}',
+        if (Session.I.token != null)
+          'Authorization': 'Bearer ${Session.I.token}',
       };
 
   Uri _uri(String path) => Uri.parse('${AppConfig.baseUrl}$path');
 
   // ---------- الحساب ----------
-  Future<UserInfo> login(String email, String password) => _auth('/auth/login', email, password);
+  Future<UserInfo> login(String email, String password) =>
+      _auth('/auth/login', email, password);
   Future<UserInfo> register(String email, String password) =>
       _auth('/auth/register', email, password);
 
@@ -51,8 +53,8 @@ class ApiService {
   }
 
   Future<UserInfo> fetchMe() async {
-    final j = await _send(
-        () => http.get(_uri('/me'), headers: _authHeaders).timeout(_shortTimeout));
+    final j = await _send(() =>
+        http.get(_uri('/me'), headers: _authHeaders).timeout(_shortTimeout));
     final info = UserInfo.fromJson(j);
     Session.I.user = info;
     return info;
@@ -63,7 +65,10 @@ class ApiService {
     final j = await _send(() => http
         .post(
           _uri('/summarize/text'),
-          headers: {..._authHeaders, 'Content-Type': 'application/json; charset=utf-8'},
+          headers: {
+            ..._authHeaders,
+            'Content-Type': 'application/json; charset=utf-8'
+          },
           body: jsonEncode({'text': text, 'language': language}),
         )
         .timeout(_timeout));
@@ -75,7 +80,9 @@ class ApiService {
     required List<int> bytes,
     required String language,
   }) =>
-      _upload('/summarize/file', [http.MultipartFile.fromBytes('file', bytes, filename: filename)],
+      _upload(
+          '/summarize/file',
+          [http.MultipartFile.fromBytes('file', bytes, filename: filename)],
           language);
 
   Future<SummaryItem> summarizeAudio({
@@ -83,7 +90,9 @@ class ApiService {
     required List<int> bytes,
     required String language,
   }) =>
-      _upload('/summarize/audio', [http.MultipartFile.fromBytes('file', bytes, filename: filename)],
+      _upload(
+          '/summarize/audio',
+          [http.MultipartFile.fromBytes('file', bytes, filename: filename)],
           language);
 
   Future<SummaryItem> summarizeImages({
@@ -92,7 +101,10 @@ class ApiService {
   }) =>
       _upload(
         '/summarize/image',
-        [for (final e in images) http.MultipartFile.fromBytes('files', e.value, filename: e.key)],
+        [
+          for (final e in images)
+            http.MultipartFile.fromBytes('files', e.value, filename: e.key)
+        ],
         language,
       );
 
@@ -100,7 +112,10 @@ class ApiService {
     final j = await _send(() => http
         .post(
           _uri('/study/generate'),
-          headers: {..._authHeaders, 'Content-Type': 'application/json; charset=utf-8'},
+          headers: {
+            ..._authHeaders,
+            'Content-Type': 'application/json; charset=utf-8'
+          },
           body: jsonEncode({
             'summary': item.summary,
             'key_points': item.keyPoints,
@@ -111,7 +126,8 @@ class ApiService {
         .timeout(_timeout));
     final material = StudyMaterial.fromJson(j);
     if (material.isEmpty) {
-      throw const ApiException('لم تنجح الخدمة في إعداد المراجعة، حاول مرة أخرى.');
+      throw const ApiException(
+          'لم تنجح الخدمة في إعداد المراجعة، حاول مرة أخرى.');
     }
     return material;
   }
@@ -130,23 +146,31 @@ class ApiService {
   }
 
   // ---------- أدوات ----------
-  Future<Map<String, dynamic>> _send(Future<http.Response> Function() call) async {
+  Future<Map<String, dynamic>> _send(
+      Future<http.Response> Function() call) async {
     try {
       final r = await call();
-      final body = utf8.decode(r.bodyBytes);
-      if (r.statusCode == 200) {
-        return Map<String, dynamic>.from(jsonDecode(body) as Map);
+      final body = utf8.decode(r.bodyBytes, allowMalformed: true);
+      if (r.statusCode >= 200 && r.statusCode < 300) {
+        final decoded = jsonDecode(body);
+        if (decoded is Map) return Map<String, dynamic>.from(decoded);
+        throw const ApiException('رد غير متوقع من الخادم.');
       }
       throw ApiException(_errorMessage(r.statusCode, body), r.statusCode);
     } on ApiException {
       rethrow;
     } on TimeoutException {
-      throw const ApiException('استغرقت المعالجة وقتاً طويلاً، حاول بملف أصغر.');
+      throw const ApiException(
+          'استغرقت المعالجة وقتاً طويلاً، حاول بملف أصغر.');
     } on SocketException {
-      throw const ApiException('تعذّر الاتصال بالخادم. تأكد من الإنترنت ثم أعد المحاولة.');
+      throw const ApiException(
+          'تعذّر الاتصال بالخادم. تأكد من الإنترنت ثم أعد المحاولة.');
     } on http.ClientException {
-      throw const ApiException('تعذّر الاتصال بالخادم. تأكد من الإنترنت ثم أعد المحاولة.');
+      throw const ApiException(
+          'تعذّر الاتصال بالخادم. تأكد من الإنترنت ثم أعد المحاولة.');
     } on FormatException {
+      throw const ApiException('رد غير متوقع من الخادم.');
+    } on TypeError {
       throw const ApiException('رد غير متوقع من الخادم.');
     }
   }

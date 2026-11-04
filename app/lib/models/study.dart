@@ -5,7 +5,7 @@ class Flashcard {
 
   Map<String, dynamic> toJson() => {'front': front, 'back': back};
   factory Flashcard.fromJson(Map<String, dynamic> j) =>
-      Flashcard(j['front'] as String? ?? '', j['back'] as String? ?? '');
+      Flashcard('${j['front'] ?? ''}', '${j['back'] ?? ''}');
 }
 
 class QuizQuestion {
@@ -29,15 +29,21 @@ class QuizQuestion {
       };
 
   factory QuizQuestion.fromJson(Map<String, dynamic> j) => QuizQuestion(
-        question: j['question'] as String? ?? '',
-        options: (j['options'] as List? ?? []).map((e) => e.toString()).toList(),
-        answerIndex: (j['answer_index'] as num?)?.toInt() ?? 0,
-        explanation: j['explanation'] as String? ?? '',
+        question: '${j['question'] ?? ''}',
+        options: j['options'] is List
+            ? (j['options'] as List).map((e) => e.toString()).toList()
+            : const [],
+        answerIndex:
+            j['answer_index'] is num ? (j['answer_index'] as num).toInt() : 0,
+        explanation: '${j['explanation'] ?? ''}',
       );
 
   /// سؤال صالح للعرض: أربعة خيارات وإجابة داخل النطاق.
   bool get isValid =>
-      question.isNotEmpty && options.length >= 2 && answerIndex >= 0 && answerIndex < options.length;
+      question.isNotEmpty &&
+      options.length == 4 &&
+      answerIndex >= 0 &&
+      answerIndex < options.length;
 }
 
 class StudyMaterial {
@@ -53,12 +59,15 @@ class StudyMaterial {
       };
 
   factory StudyMaterial.fromJson(Map<String, dynamic> j) => StudyMaterial(
-        flashcards: (j['flashcards'] as List? ?? [])
-            .map((e) => Flashcard.fromJson(Map<String, dynamic>.from(e as Map)))
-            .where((c) => c.front.isNotEmpty && c.back.isNotEmpty)
-            .toList(),
-        quiz: (j['quiz'] as List? ?? [])
-            .map((e) => QuizQuestion.fromJson(Map<String, dynamic>.from(e as Map)))
+        flashcards:
+            (j['flashcards'] is List ? j['flashcards'] as List : const [])
+                .whereType<Map>()
+                .map((e) => Flashcard.fromJson(Map<String, dynamic>.from(e)))
+                .where((c) => c.front.isNotEmpty && c.back.isNotEmpty)
+                .toList(),
+        quiz: (j['quiz'] is List ? j['quiz'] as List : const [])
+            .whereType<Map>()
+            .map((e) => QuizQuestion.fromJson(Map<String, dynamic>.from(e)))
             .where((q) => q.isValid)
             .toList(),
       );

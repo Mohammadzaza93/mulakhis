@@ -13,7 +13,8 @@ class PurchaseService {
     if (!enabled) return;
     final id = userId.toString();
     if (!_configured) {
-      await Purchases.configure(PurchasesConfiguration(AppConfig.revenueCatKey)..appUserID = id);
+      await Purchases.configure(
+          PurchasesConfiguration(AppConfig.revenueCatKey)..appUserID = id);
       _configured = true;
     } else {
       await Purchases.logIn(id);
@@ -31,7 +32,8 @@ class PurchaseService {
       await Purchases.purchasePackage(package);
       return true;
     } on PlatformException catch (e) {
-      if (PurchasesErrorHelper.getErrorCode(e) == PurchasesErrorCode.purchaseCancelledError) {
+      if (PurchasesErrorHelper.getErrorCode(e) ==
+          PurchasesErrorCode.purchaseCancelledError) {
         return false;
       }
       rethrow;

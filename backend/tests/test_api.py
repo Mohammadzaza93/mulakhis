@@ -362,3 +362,51 @@ def test_parse_json_object_rejects_non_object():
         parse_json_object("[1, 2, 3]")
     with pytest.raises(SummarizerError):
         parse_json_object("لا يوجد json")
+
+
+# ---------- حالات حدّية اكتُشفت أثناء المراجعة ----------
+def test_whitespace_only_text_is_422_and_free(client, auth):
+    r = client.post("/summarize/text", json={"text": "   \n\t  "}, headers=auth[0])
+    assert r.status_code == 422
+    assert client.get("/me", headers=auth[0]).json()["used"] == 0
+
+
+def test_whitespace_only_study_summary_is_422_and_free(client, auth):
+    r = client.post("/study/generate", json={"summary": "   \n "}, headers=auth[0])
+    assert r.status_code == 422
+    assert client.get("/me", headers=auth[0]).json()["used"] == 0
+
+
+def test_parse_json_reply_tolerates_unexpected_types():
+    out = parse_json_reply(
+        '{"title": null, "summary": "م", "key_points": "ليست قائمة", "terms": "أيضاً"}'
+    )
+    assert out["title"] == "ملخص جديد"
+    assert out["summary"] == "م"
+    assert out["key_points"] == []
+    assert out["terms"] == []
+
+
+def test_validate_study_rejects_string_options():
+    out = study.validate_study(
+        {"quiz": [_q(options="ابجد")], "flashcards": [{"front": "س", "back": "ج"}]}, 5, 5
+    )
+    assert out["quiz"] == [] and len(out["flashcards"]) == 1
+
+
+def test_audio_and_image_upstream_errors_are_502_and_free(client, auth, monkeypatch):
+    def boom(*a, **k):
+        raise RuntimeError("upstream down")
+
+    monkeypatch.setattr(media, "transcribe", boom)
+    monkeypatch.setattr(media, "ocr_images", boom)
+    headers, _ = auth
+    assert (
+        client.post("/summarize/audio", files={"file": ("a.mp3", b"x", "audio/mpeg")}, headers=headers).status_code
+        == 502
+    )
+    assert (
+        client.post("/summarize/image", files=[("files", ("p.png", PNG, "image/png"))], headers=headers).status_code
+        == 502
+    )
+    assert client.get("/me", headers=headers).json()["used"] == 0

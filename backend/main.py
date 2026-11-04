@@ -75,6 +75,9 @@ def _auth_result(user_id: int) -> AuthResult:
 
 
 def _run(user, text: str, language: str, transcript: Optional[str] = None) -> SummaryResult:
+    text = text.strip()
+    if not text:
+        raise HTTPException(status_code=422, detail="النص فارغ")
     if len(text) > MAX_TEXT_CHARS:
         raise HTTPException(
             status_code=413,
@@ -165,6 +168,8 @@ async def summarize_audio(
         text = await run_in_threadpool(media.transcribe, file.filename or "audio", data, language)
     except SummarizerError as e:
         raise HTTPException(status_code=502, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=502, detail="تعذّر الاتصال بخدمة تحويل الصوت، حاول لاحقاً")
     return await run_in_threadpool(_run, user, text, language, text)
 
 
@@ -185,6 +190,8 @@ async def summarize_images(
         text = await run_in_threadpool(media.ocr_images, images)
     except SummarizerError as e:
         raise HTTPException(status_code=502, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=502, detail="تعذّرت قراءة الصور، حاول لاحقاً")
     return await run_in_threadpool(_run, user, text, language, text)
 
 
@@ -219,7 +226,10 @@ class StudyResult(BaseModel):
 def generate_study(req: StudyRequest, user=Depends(security.current_user)):
     """يحتسب كملخص واحد من الحصة الشهرية، ولا يُحتسب إلا عند النجاح."""
     security.require_quota(user)
-    parts = [req.summary]
+    summary = req.summary.strip()
+    if not summary:
+        raise HTTPException(status_code=422, detail="الملخص فارغ")
+    parts = [summary]
     if req.key_points:
         parts.append("النقاط الرئيسية:\n" + "\n".join(f"- {p}" for p in req.key_points))
     if req.terms:

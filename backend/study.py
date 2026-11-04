@@ -23,44 +23,49 @@ SYSTEM = (
 
 
 def _clean(s: Any) -> str:
-    return re.sub(r"\s+", " ", str(s or "")).strip()
+    return re.sub(r"\s+", " ", "" if s is None else str(s)).strip()
 
 
 def validate_study(data: Dict[str, Any], max_cards: int, max_questions: int) -> Dict[str, List[Dict[str, Any]]]:
     """يُسقط أي عنصر معطوب بدل أن يُفشل الطلب كله، ويفشل فقط إن لم يبقَ شيء صالح."""
     cards = []
-    for c in data.get("flashcards", []) or []:
-        if not isinstance(c, dict):
-            continue
-        front, back = _clean(c.get("front")), _clean(c.get("back"))
-        if front and back:
-            cards.append({"front": front, "back": back})
+    raw_cards = data.get("flashcards")
+    if isinstance(raw_cards, list):
+        for c in raw_cards:
+            if not isinstance(c, dict):
+                continue
+            front, back = _clean(c.get("front")), _clean(c.get("back"))
+            if front and back:
+                cards.append({"front": front, "back": back})
 
     quiz = []
-    for q in data.get("quiz", []) or []:
-        if not isinstance(q, dict):
-            continue
-        question = _clean(q.get("question"))
-        options = [_clean(o) for o in (q.get("options") or [])]
-        idx = q.get("answer_index")
-        if (
-            not question
-            or len(options) != 4
-            or not all(options)
-            or len(set(options)) != 4
-            or not isinstance(idx, int)
-            or isinstance(idx, bool)
-            or not 0 <= idx < 4
-        ):
-            continue
-        quiz.append(
-            {
-                "question": question,
-                "options": options,
-                "answer_index": idx,
-                "explanation": _clean(q.get("explanation")),
-            }
-        )
+    raw_quiz = data.get("quiz")
+    if isinstance(raw_quiz, list):
+        for q in raw_quiz:
+            if not isinstance(q, dict):
+                continue
+            question = _clean(q.get("question"))
+            options_raw = q.get("options")
+            options = [_clean(o) for o in (options_raw if isinstance(options_raw, list) else [])]
+            idx = q.get("answer_index")
+            if (
+                not question
+                or len(options) != 4
+                or not all(options)
+                or len(set(options)) != 4
+                or not isinstance(idx, int)
+                or isinstance(idx, bool)
+                or not 0 <= idx < 4
+            ):
+                continue
+            quiz.append(
+                {
+                    "question": question,
+                    "options": options,
+                    "answer_index": idx,
+                    "explanation": _clean(q.get("explanation")),
+                }
+            )
 
     cards, quiz = cards[:max_cards], quiz[:max_questions]
     if not cards and not quiz:

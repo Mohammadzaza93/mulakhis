@@ -58,7 +58,8 @@ class _PaywallScreenState extends State<PaywallScreen> {
     return false;
   }
 
-  Future<void> _run(Future<bool> Function() action, {required String success}) async {
+  Future<void> _run(Future<bool> Function() action,
+      {required String success}) async {
     setState(() {
       _busy = true;
       _message = null;
@@ -69,13 +70,18 @@ class _PaywallScreenState extends State<PaywallScreen> {
       final pro = await _waitForPro();
       if (!mounted) return;
       if (pro) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(success)));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(success)));
         Navigator.of(context).pop(true);
       } else {
-        setState(() => _message = 'تمت العملية، وسيُفعَّل اشتراكك خلال لحظات. أعد فتح التطبيق إن تأخر.');
+        setState(() => _message =
+            'تمت العملية، وسيُفعَّل اشتراكك خلال لحظات. أعد فتح التطبيق إن تأخر.');
       }
     } catch (_) {
-      if (mounted) setState(() => _message = 'تعذّرت العملية، لم يُخصم منك شيء. حاول مرة أخرى.');
+      if (mounted) {
+        setState(() =>
+            _message = 'تعذّرت العملية، لم يُخصم منك شيء. حاول مرة أخرى.');
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -95,8 +101,10 @@ class _PaywallScreenState extends State<PaywallScreen> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                    color: scheme.secondaryContainer, borderRadius: BorderRadius.circular(12)),
-                child: Text(widget.reason!, style: TextStyle(color: scheme.onSecondaryContainer)),
+                    color: scheme.secondaryContainer,
+                    borderRadius: BorderRadius.circular(12)),
+                child: Text(widget.reason!,
+                    style: TextStyle(color: scheme.onSecondaryContainer)),
               ),
               const SizedBox(height: 16),
             ],
@@ -106,8 +114,12 @@ class _PaywallScreenState extends State<PaywallScreen> {
                     .headlineSmall
                     ?.copyWith(fontWeight: FontWeight.w700)),
             const SizedBox(height: 16),
-            _row(Icons.all_inclusive, 'ملخصات أكثر كل شهر',
-                user == null || user.isPro ? null : 'بدل ${user.limit} ملخصات مجانية شهرياً'),
+            _row(
+                Icons.all_inclusive,
+                'ملخصات أكثر كل شهر',
+                user == null || user.isPro
+                    ? null
+                    : 'بدل ${user.limit} ملخصات مجانية شهرياً'),
             _row(Icons.mic, 'تسجيلات صوتية وصور وملفات', 'بكل الصيغ المدعومة'),
             _row(Icons.history, 'مكتبة ملخصاتك محفوظة', null),
             const SizedBox(height: 20),
@@ -128,14 +140,19 @@ class _PaywallScreenState extends State<PaywallScreen> {
                   child: FilledButton(
                     onPressed: _busy
                         ? null
-                        : () => _run(() => PurchaseService.buy(p), success: 'تم تفعيل اشتراكك، شكراً لك!'),
-                    style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56)),
-                    child: Text('${p.storeProduct.title} — ${p.storeProduct.priceString}'),
+                        : () => _run(() => PurchaseService.buy(p),
+                            success: 'تم تفعيل اشتراكك، شكراً لك!'),
+                    style: FilledButton.styleFrom(
+                        minimumSize: const Size.fromHeight(56)),
+                    child: Text(
+                        '${p.storeProduct.title} — ${p.storeProduct.priceString}'),
                   ),
                 ),
             if (_message != null) ...[
               const SizedBox(height: 8),
-              Text(_message!, textAlign: TextAlign.center, style: TextStyle(color: scheme.error)),
+              Text(_message!,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: scheme.error)),
             ],
             if (PurchaseService.enabled)
               TextButton(

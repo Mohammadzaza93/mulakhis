@@ -13,10 +13,17 @@ class StorageService {
     final raw = prefs.getString(_key);
     if (raw == null) return [];
     try {
-      final list = jsonDecode(raw) as List;
-      final items = list
-          .map((e) => SummaryItem.fromJson(Map<String, dynamic>.from(e as Map)))
-          .toList();
+      final list = jsonDecode(raw);
+      if (list is! List) return [];
+      final items = <SummaryItem>[];
+      for (final e in list) {
+        if (e is! Map) continue;
+        try {
+          items.add(SummaryItem.fromJson(Map<String, dynamic>.from(e)));
+        } catch (_) {
+          // عنصر تالف: نتخطاه بدل إخفاء المكتبة كلها.
+        }
+      }
       items.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       return items;
     } catch (_) {
@@ -26,7 +33,8 @@ class StorageService {
 
   Future<void> _write(List<SummaryItem> items) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_key, jsonEncode(items.map((e) => e.toJson()).toList()));
+    await prefs.setString(
+        _key, jsonEncode(items.map((e) => e.toJson()).toList()));
   }
 
   Future<void> add(SummaryItem item) async {

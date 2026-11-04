@@ -74,21 +74,28 @@ class _NewSummaryScreenState extends State<NewSummaryScreen> {
 
   // ---------- ملف ----------
   Future<void> _pickFile() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: const ['pdf', 'docx', 'txt'],
-      withData: true,
-    );
-    if (result == null || result.files.isEmpty) return;
-    final f = result.files.first;
-    if (f.size > AppConfig.maxFileMb * 1024 * 1024) {
-      setState(() => _error = 'الملف أكبر من ${AppConfig.maxFileMb} ميغابايت');
-      return;
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: const ['pdf', 'docx', 'txt', 'md'],
+        withData: true,
+      );
+      if (!mounted || result == null || result.files.isEmpty) return;
+      final f = result.files.first;
+      if (f.size > AppConfig.maxFileMb * 1024 * 1024) {
+        setState(
+            () => _error = 'الملف أكبر من ${AppConfig.maxFileMb} ميغابايت');
+        return;
+      }
+      setState(() {
+        _file = f;
+        _error = null;
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() => _error = 'تعذّر اختيار الملف، حاول مرة أخرى.');
+      }
     }
-    setState(() {
-      _file = f;
-      _error = null;
-    });
   }
 
   // ---------- صوت ----------
@@ -97,74 +104,120 @@ class _NewSummaryScreenState extends State<NewSummaryScreen> {
       await _stopRecording();
       return;
     }
-    if (!await _recorder.hasPermission()) {
-      setState(() => _error = 'نحتاج إذن الميكروفون للتسجيل. فعّله من إعدادات الجهاز.');
-      return;
+    try {
+      if (!await _recorder.hasPermission()) {
+        setState(() =>
+            _error = 'نحتاج إذن الميكروفون للتسجيل. فعّله من إعدادات الجهاز.');
+        return;
+      }
+      final dir = await getTemporaryDirectory();
+      final path =
+          '${dir.path}/rec_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      await _recorder.start(
+        const RecordConfig(
+          encoder: AudioEncoder.aacLc,
+          sampleRate: 16000,
+          numChannels: 1,
+          bitRate: 48000,
+        ),
+        path: path,
+      );
+      if (!mounted) return;
+      _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() => _elapsed += const Duration(seconds: 1));
+      });
+      setState(() {
+        _recording = true;
+        _elapsed = Duration.zero;
+        _audioBytes = null;
+        _audioName = null;
+        _error = null;
+      });
+    } catch (_) {
+      _ticker?.cancel();
+      if (mounted) {
+        setState(() {
+          _recording = false;
+          _error =
+              'تعذّر بدء التسجيل. تأكد من إتاحة الميكروفون ثم حاول مرة أخرى.';
+        });
+      }
     }
-    final dir = await getTemporaryDirectory();
-    final path = '${dir.path}/rec_${DateTime.now().millisecondsSinceEpoch}.m4a';
-    await _recorder.start(
-      const RecordConfig(
-        encoder: AudioEncoder.aacLc,
-        sampleRate: 16000,
-        numChannels: 1,
-        bitRate: 48000,
-      ),
-      path: path,
-    );
-    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() => _elapsed += const Duration(seconds: 1));
-    });
-    setState(() {
-      _recording = true;
-      _elapsed = Duration.zero;
-      _audioBytes = null;
-      _audioName = null;
-      _error = null;
-    });
   }
 
   Future<void> _stopRecording() async {
     _ticker?.cancel();
-    final path = await _recorder.stop();
-    if (path == null) {
-      setState(() => _recording = false);
-      return;
-    }
-    final bytes = await File(path).readAsBytes();
-    if (!mounted) return;
-    if (bytes.length > AppConfig.maxAudioMb * 1024 * 1024) {
+    try {
+      final path = await _recorder.stop();
+      if (!mounted) return;
+      if (path == null) {
+        setState(() => _recording = false);
+        return;
+      }
+      final bytes = await File(path).readAsBytes();
+      if (!mounted) return;
+      if (bytes.length > AppConfig.maxAudioMb * 1024 * 1024) {
+        setState(() {
+          _recording = false;
+          _error =
+              'التسجيل أكبر من ${AppConfig.maxAudioMb} ميغابايت، قسّمه إلى تسجيلين.';
+        });
+        return;
+      }
       setState(() {
         _recording = false;
-        _error = 'التسجيل أكبر من ${AppConfig.maxAudioMb} ميغابايت، قسّمه إلى تسجيلين.';
+        _audioBytes = bytes;
+        _audioName = path.split(RegExp(r'[/\\]')).last;
       });
-      return;
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _recording = false;
+          _error = 'تعذّر حفظ التسجيل، حاول مرة أخرى.';
+        });
+      }
     }
-    setState(() {
-      _recording = false;
-      _audioBytes = bytes;
-      _audioName = path.split('/').last;
-    });
   }
 
   Future<void> _pickAudioFile() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: const ['mp3', 'm4a', 'wav', 'aac', 'ogg', 'webm'],
-      withData: true,
-    );
-    if (result == null || result.files.isEmpty) return;
-    final f = result.files.first;
-    if (f.bytes == null) return;
-    if (f.size > AppConfig.maxAudioMb * 1024 * 1024) {
-      setState(() => _error = 'الملف الصوتي أكبر من ${AppConfig.maxAudioMb} ميغابايت');
-      return;
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: const [
+          'mp3',
+          'm4a',
+          'wav',
+          'aac',
+          'ogg',
+          'webm',
+          'flac',
+          'mp4',
+          'mpeg',
+          'mpga'
+        ],
+        withData: true,
+      );
+      if (!mounted || result == null || result.files.isEmpty) return;
+      final f = result.files.first;
+      if (f.bytes == null) {
+        setState(() => _error = 'تعذّرت قراءة الملف الصوتي، اختره مرة أخرى.');
+        return;
+      }
+      if (f.size > AppConfig.maxAudioMb * 1024 * 1024) {
+        setState(() =>
+            _error = 'الملف الصوتي أكبر من ${AppConfig.maxAudioMb} ميغابايت');
+        return;
+      }
+      setState(() {
+        _audioBytes = f.bytes;
+        _audioName = f.name;
+        _error = null;
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() => _error = 'تعذّر اختيار الملف الصوتي، حاول مرة أخرى.');
+      }
     }
-    setState(() {
-      _audioBytes = f.bytes;
-      _audioName = f.name;
-      _error = null;
-    });
   }
 
   // ---------- صور ----------
@@ -174,18 +227,28 @@ class _NewSummaryScreenState extends State<NewSummaryScreen> {
       setState(() => _error = 'الحد الأقصى ${AppConfig.maxImages} صور.');
       return;
     }
-    List<XFile> picked;
-    if (camera) {
-      final one = await _picker.pickImage(source: ImageSource.camera, imageQuality: 85);
-      picked = one == null ? [] : [one];
-    } else {
-      picked = await _picker.pickMultiImage(imageQuality: 85);
+    try {
+      List<XFile> picked;
+      if (camera) {
+        final one = await _picker.pickImage(
+            source: ImageSource.camera, imageQuality: 85);
+        picked = one == null ? [] : [one];
+      } else {
+        picked = await _picker.pickMultiImage(imageQuality: 85);
+      }
+      if (!mounted || picked.isEmpty) return;
+      setState(() {
+        _images.addAll(picked.take(room));
+        _error = picked.length > room
+            ? 'أُضيفت $room صور فقط (الحد الأقصى ${AppConfig.maxImages}).'
+            : null;
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() => _error =
+            'تعذّر فتح الكاميرا أو المعرض. تحقّق من الأذونات وحاول مرة أخرى.');
+      }
     }
-    if (picked.isEmpty) return;
-    setState(() {
-      _images.addAll(picked.take(room));
-      _error = picked.length > room ? 'أُضيفت $room صور فقط (الحد الأقصى ${AppConfig.maxImages}).' : null;
-    });
   }
 
   // ---------- إرسال ----------
@@ -199,12 +262,16 @@ class _NewSummaryScreenState extends State<NewSummaryScreen> {
       switch (_source) {
         case _Source.file:
           final bytes = _file!.bytes;
-          if (bytes == null) throw const ApiException('تعذّرت قراءة الملف، اختره مرة أخرى.');
+          if (bytes == null) {
+            throw const ApiException('تعذّرت قراءة الملف، اختره مرة أخرى.');
+          }
           item = await _api.summarizeFile(
               filename: _file!.name, bytes: bytes, language: _language);
         case _Source.audio:
           item = await _api.summarizeAudio(
-              filename: _audioName ?? 'audio.m4a', bytes: _audioBytes!, language: _language);
+              filename: _audioName ?? 'audio.m4a',
+              bytes: _audioBytes!,
+              language: _language);
         case _Source.image:
           final list = <MapEntry<String, List<int>>>[];
           for (final x in _images) {
@@ -212,23 +279,25 @@ class _NewSummaryScreenState extends State<NewSummaryScreen> {
           }
           item = await _api.summarizeImages(images: list, language: _language);
         case _Source.text:
-          item = await _api.summarizeText(_textController.text.trim(), _language);
+          item =
+              await _api.summarizeText(_textController.text.trim(), _language);
       }
       await _storage.add(item);
       _api.fetchMe().then((_) {}, onError: (_) {}); // تحديث العدّاد
       if (!mounted) return;
-      Navigator.of(context)
-          .pushReplacement(MaterialPageRoute(builder: (_) => SummaryScreen(item: item)));
+      Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => SummaryScreen(item: item)));
     } on ApiException catch (e) {
       if (!mounted) return;
       if (e.unauthorized) {
         await Session.I.clear();
         if (!mounted) return;
         Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const LoginScreen()), (_) => false);
+            MaterialPageRoute(builder: (_) => const LoginScreen()),
+            (_) => false);
       } else if (e.quotaExceeded) {
-        await Navigator.of(context)
-            .push(MaterialPageRoute(builder: (_) => PaywallScreen(reason: e.message)));
+        await Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => PaywallScreen(reason: e.message)));
       } else {
         setState(() => _error = e.message);
       }
@@ -276,7 +345,8 @@ class _NewSummaryScreenState extends State<NewSummaryScreen> {
                     DropdownMenuItem(value: 'ar', child: Text('العربية')),
                     DropdownMenuItem(value: 'en', child: Text('English')),
                   ],
-                  onChanged: _loading ? null : (v) => setState(() => _language = v!),
+                  onChanged:
+                      _loading ? null : (v) => setState(() => _language = v!),
                 ),
               ],
             ),
@@ -288,7 +358,8 @@ class _NewSummaryScreenState extends State<NewSummaryScreen> {
                   color: scheme.errorContainer,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Text(_error!, style: TextStyle(color: scheme.onErrorContainer)),
+                child: Text(_error!,
+                    style: TextStyle(color: scheme.onErrorContainer)),
               ),
             ],
             const SizedBox(height: 24),
@@ -296,10 +367,13 @@ class _NewSummaryScreenState extends State<NewSummaryScreen> {
               onPressed: _canSubmit ? _submit : null,
               icon: _loading
                   ? const SizedBox(
-                      width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2))
                   : const Icon(Icons.auto_awesome),
               label: Text(_loading ? 'جاري التلخيص...' : 'لخّص'),
-              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+              style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(52)),
             ),
             if (_loading) ...[
               const SizedBox(height: 12),
@@ -344,8 +418,12 @@ class _NewSummaryScreenState extends State<NewSummaryScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(_file == null ? Icons.cloud_upload_outlined : Icons.description,
-                  size: 40, color: scheme.primary),
+              Icon(
+                  _file == null
+                      ? Icons.cloud_upload_outlined
+                      : Icons.description,
+                  size: 40,
+                  color: scheme.primary),
               const SizedBox(height: 8),
               Text(
                 _file?.name ?? 'اضغط لاختيار ملف (PDF أو DOCX أو TXT)',
@@ -389,7 +467,9 @@ class _NewSummaryScreenState extends State<NewSummaryScreen> {
           FilledButton.tonalIcon(
             onPressed: _loading ? null : _toggleRecording,
             icon: Icon(_recording ? Icons.stop : Icons.mic),
-            label: Text(_recording ? 'إيقاف التسجيل' : (_audioBytes != null ? 'تسجيل من جديد' : 'ابدأ التسجيل')),
+            label: Text(_recording
+                ? 'إيقاف التسجيل'
+                : (_audioBytes != null ? 'تسجيل من جديد' : 'ابدأ التسجيل')),
             style: FilledButton.styleFrom(
               minimumSize: const Size.fromHeight(48),
               backgroundColor: _recording ? scheme.errorContainer : null,
@@ -440,7 +520,8 @@ class _NewSummaryScreenState extends State<NewSummaryScreen> {
               border: Border.all(color: scheme.outlineVariant),
               borderRadius: BorderRadius.circular(16),
             ),
-            child: Text('صوّر صفحات الكتاب أو السبورة (حتى ${AppConfig.maxImages} صور)',
+            child: const Text(
+                'صوّر صفحات الكتاب أو السبورة (حتى ${AppConfig.maxImages} صور)',
                 textAlign: TextAlign.center),
           )
         else
@@ -460,11 +541,14 @@ class _NewSummaryScreenState extends State<NewSummaryScreen> {
                       top: 2,
                       end: 2,
                       child: InkWell(
-                        onTap: _loading ? null : () => setState(() => _images.removeAt(i)),
+                        onTap: _loading
+                            ? null
+                            : () => setState(() => _images.removeAt(i)),
                         child: const CircleAvatar(
                           radius: 11,
                           backgroundColor: Colors.black54,
-                          child: Icon(Icons.close, size: 14, color: Colors.white),
+                          child:
+                              Icon(Icons.close, size: 14, color: Colors.white),
                         ),
                       ),
                     ),

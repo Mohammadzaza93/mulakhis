@@ -7,8 +7,28 @@ class Term {
 
   Map<String, dynamic> toJson() => {'term': term, 'definition': definition};
   factory Term.fromJson(Map<String, dynamic> j) =>
-      Term(j['term'] as String? ?? '', j['definition'] as String? ?? '');
+      Term('${j['term'] ?? ''}', '${j['definition'] ?? ''}');
 }
+
+List<String> _stringList(Object? value) =>
+    value is List ? value.map((e) => e.toString()).toList() : [];
+
+List<Term> _termList(Object? value) => value is List
+    ? value
+        .whereType<Map>()
+        .map((e) => Term.fromJson(Map<String, dynamic>.from(e)))
+        .toList()
+    : [];
+
+String _string(Object? value) => value == null ? '' : value.toString();
+
+String _stringOr(Object? value, String fallback) {
+  final s = _string(value).trim();
+  return s.isEmpty ? fallback : s;
+}
+
+String? _nullableString(Object? value) =>
+    value is String && value.isNotEmpty ? value : null;
 
 class SummaryItem {
   final String id;
@@ -53,15 +73,13 @@ class SummaryItem {
   factory SummaryItem.fromApi(Map<String, dynamic> j, String language) {
     return SummaryItem(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
-      title: j['title'] as String? ?? 'ملخص جديد',
-      summary: j['summary'] as String? ?? '',
-      keyPoints: (j['key_points'] as List? ?? []).map((e) => e.toString()).toList(),
-      terms: (j['terms'] as List? ?? [])
-          .map((e) => Term.fromJson(Map<String, dynamic>.from(e as Map)))
-          .toList(),
+      title: _stringOr(j['title'], 'ملخص جديد'),
+      summary: _string(j['summary']),
+      keyPoints: _stringList(j['key_points']),
+      terms: _termList(j['terms']),
       language: language,
       createdAt: DateTime.now(),
-      transcript: j['transcript'] as String?,
+      transcript: _nullableString(j['transcript']),
     );
   }
 
@@ -77,21 +95,25 @@ class SummaryItem {
         'study': study?.toJson(),
       };
 
-  factory SummaryItem.fromJson(Map<String, dynamic> j) => SummaryItem(
-        id: j['id'] as String,
-        title: j['title'] as String? ?? '',
-        summary: j['summary'] as String? ?? '',
-        keyPoints: (j['keyPoints'] as List? ?? []).map((e) => e.toString()).toList(),
-        terms: (j['terms'] as List? ?? [])
-            .map((e) => Term.fromJson(Map<String, dynamic>.from(e as Map)))
-            .toList(),
-        language: j['language'] as String? ?? 'ar',
-        createdAt: DateTime.tryParse(j['createdAt'] as String? ?? '') ?? DateTime.now(),
-        transcript: j['transcript'] as String?,
-        study: j['study'] is Map
-            ? StudyMaterial.fromJson(Map<String, dynamic>.from(j['study'] as Map))
-            : null,
-      );
+  factory SummaryItem.fromJson(Map<String, dynamic> j) {
+    final id = j['id'];
+    if (id is! String || id.isEmpty) {
+      throw const FormatException('عنصر بلا معرّف');
+    }
+    return SummaryItem(
+      id: id,
+      title: _string(j['title']),
+      summary: _string(j['summary']),
+      keyPoints: _stringList(j['keyPoints'] ?? j['key_points']),
+      terms: _termList(j['terms']),
+      language: _stringOr(j['language'], 'ar'),
+      createdAt: DateTime.tryParse(_string(j['createdAt'])) ?? DateTime.now(),
+      transcript: _nullableString(j['transcript']),
+      study: j['study'] is Map
+          ? StudyMaterial.fromJson(Map<String, dynamic>.from(j['study'] as Map))
+          : null,
+    );
+  }
 
   /// نص جاهز للنسخ أو المشاركة.
   String toPlainText() {

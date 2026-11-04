@@ -73,16 +73,31 @@ def parse_json_object(raw: str) -> Dict[str, Any]:
     return data
 
 
+def _as_text(value: Any) -> str:
+    """يحوّل قيمة من رد النموذج إلى نص نظيف دون أن يفشل على None أو الأنواع الغريبة."""
+    return "" if value is None else str(value).strip()
+
+
+def _as_text_list(value: Any) -> List[str]:
+    """يقبل قائمة نصوص فقط، وأي شكل آخر (نص أو None) يعطي قائمة فارغة."""
+    if not isinstance(value, list):
+        return []
+    return [_as_text(p) for p in value if _as_text(p)]
+
+
 def parse_json_reply(raw: str) -> Dict[str, Any]:
     data = parse_json_object(raw)
+    terms = data.get("terms")
+    if not isinstance(terms, list):
+        terms = []
     return {
-        "title": str(data.get("title", "")).strip() or "ملخص جديد",
-        "summary": str(data.get("summary", "")).strip(),
-        "key_points": [str(p).strip() for p in data.get("key_points", []) if str(p).strip()],
+        "title": _as_text(data.get("title")) or "ملخص جديد",
+        "summary": _as_text(data.get("summary")),
+        "key_points": _as_text_list(data.get("key_points")),
         "terms": [
-            {"term": str(t.get("term", "")).strip(), "definition": str(t.get("definition", "")).strip()}
-            for t in data.get("terms", [])
-            if isinstance(t, dict) and str(t.get("term", "")).strip()
+            {"term": _as_text(t.get("term")), "definition": _as_text(t.get("definition"))}
+            for t in terms
+            if isinstance(t, dict) and _as_text(t.get("term"))
         ],
     }
 

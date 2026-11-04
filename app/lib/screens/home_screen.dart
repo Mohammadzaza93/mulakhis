@@ -52,9 +52,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _delete(SummaryItem item) async {
+    // نزيل العنصر من الحالة فوراً: Dismissible يجب ألا يبقى في الشجرة بعد طيّه.
+    if (_items != null) {
+      setState(() => _items = _items!.where((e) => e.id != item.id).toList());
+    }
     await _storage.remove(item.id);
     if (!mounted) return;
-    _reload();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Text('تم حذف الملخص'),
@@ -62,7 +65,7 @@ class _HomeScreenState extends State<HomeScreen> {
           label: 'تراجع',
           onPressed: () async {
             await _storage.add(item);
-            _reload();
+            await _reload();
           },
         ),
       ),
@@ -81,10 +84,15 @@ class _HomeScreenState extends State<HomeScreen> {
             Padding(
               padding: const EdgeInsetsDirectional.only(end: 4),
               child: ActionChip(
-                avatar: Icon(user.isPro ? Icons.workspace_premium : Icons.bolt, size: 18),
-                label: Text(user.isPro ? 'Pro · ${user.remaining}' : '${user.remaining}/${user.limit}'),
-                tooltip: user.isPro ? 'اشتراكك فعّال' : 'ملخصات متبقية هذا الشهر',
-                onPressed: user.isPro ? null : () => _open(const PaywallScreen()),
+                avatar: Icon(user.isPro ? Icons.workspace_premium : Icons.bolt,
+                    size: 18),
+                label: Text(user.isPro
+                    ? 'Pro · ${user.remaining}'
+                    : '${user.remaining}/${user.limit}'),
+                tooltip:
+                    user.isPro ? 'اشتراكك فعّال' : 'ملخصات متبقية هذا الشهر',
+                onPressed:
+                    user.isPro ? null : () => _open(const PaywallScreen()),
               ),
             ),
           PopupMenuButton<String>(
@@ -132,11 +140,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       onDismissed: (_) => _delete(item),
                       child: Card(
                         child: ListTile(
-                          contentPadding:
-                              const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                          title: Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-                          subtitle:
-                              Text(item.summary, maxLines: 2, overflow: TextOverflow.ellipsis),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 6),
+                          title: Text(item.title,
+                              maxLines: 1, overflow: TextOverflow.ellipsis),
+                          subtitle: Text(item.summary,
+                              maxLines: 2, overflow: TextOverflow.ellipsis),
                           trailing: Text(_formatDate(item.createdAt),
                               style: Theme.of(context).textTheme.bodySmall),
                           onTap: () => _open(SummaryScreen(item: item)),
@@ -165,7 +174,8 @@ class _EmptyState extends StatelessWidget {
           children: [
             Icon(Icons.auto_stories_outlined, size: 64, color: scheme.primary),
             const SizedBox(height: 16),
-            Text('لا توجد ملخصات بعد', style: Theme.of(context).textTheme.titleMedium),
+            Text('لا توجد ملخصات بعد',
+                style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             Text(
               'سجّل محاضرتك، أو صوّر صفحات، أو ارفع ملف PDF أو Word، وسيجهّز لك التطبيق ملخصاً ونقاطاً رئيسية.',

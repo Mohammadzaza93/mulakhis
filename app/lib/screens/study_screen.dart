@@ -48,12 +48,13 @@ class _StudyScreenState extends State<StudyScreen> {
         await Session.I.clear();
         if (!mounted) return;
         Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const LoginScreen()), (_) => false);
+            MaterialPageRoute(builder: (_) => const LoginScreen()),
+            (_) => false);
         return;
       }
       if (e.quotaExceeded) {
-        await Navigator.of(context)
-            .push(MaterialPageRoute(builder: (_) => PaywallScreen(reason: e.message)));
+        await Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => PaywallScreen(reason: e.message)));
       }
       if (mounted) setState(() => _error = e.message);
     } catch (_) {
@@ -84,9 +85,12 @@ class _StudyScreenState extends State<StudyScreen> {
                 : Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(_error ?? 'لا توجد مواد مراجعة.', textAlign: TextAlign.center),
+                      Text(_error ?? 'لا توجد مواد مراجعة.',
+                          textAlign: TextAlign.center),
                       const SizedBox(height: 16),
-                      FilledButton(onPressed: _generate, child: const Text('إعادة المحاولة')),
+                      FilledButton(
+                          onPressed: _generate,
+                          child: const Text('إعادة المحاولة')),
                     ],
                   ),
           ),
@@ -166,11 +170,13 @@ class _FlashcardsViewState extends State<FlashcardsView> {
             children: [
               Icon(Icons.check_circle, size: 64, color: scheme.primary),
               const SizedBox(height: 12),
-              Text('أنهيت كل البطاقات', style: Theme.of(context).textTheme.titleLarge),
+              Text('أنهيت كل البطاقات',
+                  style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 8),
               Text('احتجت إعادة $_again مرة'),
               const SizedBox(height: 20),
-              FilledButton.tonal(onPressed: _restart, child: const Text('ابدأ من جديد')),
+              FilledButton.tonal(
+                  onPressed: _restart, child: const Text('ابدأ من جديد')),
             ],
           ),
         ),
@@ -183,7 +189,8 @@ class _FlashcardsViewState extends State<FlashcardsView> {
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          LinearProgressIndicator(value: progress, borderRadius: BorderRadius.circular(8)),
+          LinearProgressIndicator(
+              value: progress, borderRadius: BorderRadius.circular(8)),
           const SizedBox(height: 8),
           Text('عرفت $_known من ${widget.cards.length}',
               style: Theme.of(context).textTheme.bodySmall),
@@ -191,7 +198,9 @@ class _FlashcardsViewState extends State<FlashcardsView> {
           Expanded(
             child: Semantics(
               button: true,
-              label: _flipped ? 'الإجابة، اضغط للرجوع للسؤال' : 'السؤال، اضغط لإظهار الإجابة',
+              label: _flipped
+                  ? 'الإجابة، اضغط للرجوع للسؤال'
+                  : 'السؤال، اضغط لإظهار الإجابة',
               child: InkWell(
                 borderRadius: BorderRadius.circular(20),
                 onTap: () => setState(() => _flipped = !_flipped),
@@ -202,7 +211,9 @@ class _FlashcardsViewState extends State<FlashcardsView> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
-                      color: _flipped ? scheme.primaryContainer : scheme.surfaceContainerHighest,
+                      color: _flipped
+                          ? scheme.primaryContainer
+                          : scheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(20),
                     ),
                     alignment: Alignment.center,
@@ -219,7 +230,10 @@ class _FlashcardsViewState extends State<FlashcardsView> {
                           Text(
                             _flipped ? card.back : card.front,
                             textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.titleLarge?.copyWith(height: 1.6),
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleLarge
+                                ?.copyWith(height: 1.6),
                           ),
                           if (!_flipped) ...[
                             const SizedBox(height: 20),
@@ -245,7 +259,8 @@ class _FlashcardsViewState extends State<FlashcardsView> {
                   onPressed: _flipped ? () => _answer(knew: false) : null,
                   icon: const Icon(Icons.refresh),
                   label: const Text('أعد عليّ'),
-                  style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+                  style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52)),
                 ),
               ),
               const SizedBox(width: 12),
@@ -254,7 +269,8 @@ class _FlashcardsViewState extends State<FlashcardsView> {
                   onPressed: _flipped ? () => _answer(knew: true) : null,
                   icon: const Icon(Icons.check),
                   label: const Text('عرفتها'),
-                  style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+                  style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52)),
                 ),
               ),
             ],
@@ -328,9 +344,12 @@ class _QuizViewState extends State<QuizView> {
               Text('نتيجتك: $_score من $total',
                   style: Theme.of(context).textTheme.headlineSmall),
               const SizedBox(height: 8),
-              Text(ratio >= 0.7 ? 'ممتاز! أنت متمكّن من المادة.' : 'راجع البطاقات ثم أعد المحاولة.'),
+              Text(ratio >= 0.7
+                  ? 'ممتاز! أنت متمكّن من المادة.'
+                  : 'راجع البطاقات ثم أعد المحاولة.'),
               const SizedBox(height: 20),
-              FilledButton.tonal(onPressed: _restart, child: const Text('أعد الاختبار')),
+              FilledButton.tonal(
+                  onPressed: _restart, child: const Text('أعد الاختبار')),
             ],
           ),
         ),
@@ -342,9 +361,11 @@ class _QuizViewState extends State<QuizView> {
       padding: const EdgeInsets.all(16),
       children: [
         LinearProgressIndicator(
-            value: (_index + (answered ? 1 : 0)) / total, borderRadius: BorderRadius.circular(8)),
+            value: (_index + (answered ? 1 : 0)) / total,
+            borderRadius: BorderRadius.circular(8)),
         const SizedBox(height: 8),
-        Text('السؤال ${_index + 1} من $total', style: Theme.of(context).textTheme.bodySmall),
+        Text('السؤال ${_index + 1} من $total',
+            style: Theme.of(context).textTheme.bodySmall),
         const SizedBox(height: 16),
         Text(_q.question,
             style: Theme.of(context)
@@ -361,7 +382,8 @@ class _QuizViewState extends State<QuizView> {
               color: scheme.secondaryContainer,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Text(_q.explanation, style: TextStyle(color: scheme.onSecondaryContainer)),
+            child: Text(_q.explanation,
+                style: TextStyle(color: scheme.onSecondaryContainer)),
           ),
         ],
         const SizedBox(height: 16),
@@ -402,13 +424,18 @@ class _QuizViewState extends State<QuizView> {
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: bg,
-            border: Border.all(color: border, width: answered && (isCorrect || isChosen) ? 2 : 1),
+            border: Border.all(
+                color: border,
+                width: answered && (isCorrect || isChosen) ? 2 : 1),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Row(
             children: [
-              Expanded(child: Text(_q.options[i], style: const TextStyle(height: 1.5))),
-              if (icon != null) Icon(icon, color: isCorrect ? scheme.primary : scheme.error),
+              Expanded(
+                  child:
+                      Text(_q.options[i], style: const TextStyle(height: 1.5))),
+              if (icon != null)
+                Icon(icon, color: isCorrect ? scheme.primary : scheme.error),
             ],
           ),
         ),
