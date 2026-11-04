@@ -14,6 +14,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 import db
 
 TOKEN_DAYS = 30
+RESET_TOKEN_HOURS = 2
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _bearer = HTTPBearer(auto_error=False)
 
@@ -29,7 +30,9 @@ def _secret() -> str:
         return s
     if os.getenv("ALLOW_DEV_SECRET") == "1":
         return "dev-only-secret-change-me-0123456789abcdef"
-    raise RuntimeError("JWT_SECRET غير مضبوط. اضبطه في .env (أو ALLOW_DEV_SECRET=1 للتطوير فقط).")
+    raise RuntimeError(
+        "JWT_SECRET غير مضبوط. اضبطه في .env (أو ALLOW_DEV_SECRET=1 للتطوير فقط)."
+    )
 
 
 def hash_password(password: str) -> str:
@@ -41,7 +44,9 @@ def hash_password(password: str) -> str:
 def verify_password(password: str, stored: str) -> bool:
     try:
         salt_hex, hash_hex = stored.split("$")
-        h = hashlib.scrypt(password.encode(), salt=bytes.fromhex(salt_hex), n=2**14, r=8, p=1)
+        h = hashlib.scrypt(
+            password.encode(), salt=bytes.fromhex(salt_hex), n=2**14, r=8, p=1
+        )
         return hmac.compare_digest(h.hex(), hash_hex)
     except Exception:
         return False
@@ -61,13 +66,23 @@ def decode_token(token: str) -> Optional[int]:
         return None
 
 
+def hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def make_reset_token() -> str:
+    return secrets.token_urlsafe(32)
+
+
 def current_user(creds: Optional[HTTPAuthorizationCredentials] = Depends(_bearer)):
     if creds is None:
         raise HTTPException(status_code=401, detail="سجّل الدخول أولاً")
     uid = decode_token(creds.credentials)
     user = db.get_user(uid) if uid is not None else None
     if user is None:
-        raise HTTPException(status_code=401, detail="انتهت الجلسة، سجّل الدخول من جديد")
+        raise HTTPException(
+            status_code=401, detail="انتهت الجلسة، سجّل الدخول من جديد"
+        )
     return user
 
 
