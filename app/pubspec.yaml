@@ -1,7 +1,7 @@
 name: mulakhis
 description: تطبيق تلخيص المحاضرات والملفات للطلاب
 publish_to: "none"
-version: 0.2.0+2
+version: 0.3.0+3
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
@@ -21,6 +21,8 @@ dependencies:
   path_provider: ^2.1.0
   image_picker: ^1.0.0
   purchases_flutter: ^8.0.0
+  google_sign_in: ^6.2.0
+  sign_in_with_apple: ^6.1.0
 
 dev_dependencies:
   flutter_test:
