@@ -95,10 +95,42 @@ class SummaryItem {
         'study': study?.toJson(),
       };
 
+  Map<String, dynamic> toCloudJson() => {
+        'id': id,
+        'title': title,
+        'summary': summary,
+        'key_points': keyPoints,
+        'terms': terms.map((t) => t.toJson()).toList(),
+        'language': language,
+        'created_at': createdAt.millisecondsSinceEpoch ~/ 1000,
+        'updated_at': DateTime.now().millisecondsSinceEpoch ~/ 1000,
+        'transcript': transcript,
+        'study': study?.toJson(),
+      };
+
   factory SummaryItem.fromJson(Map<String, dynamic> j) {
     final id = j['id'];
     if (id is! String || id.isEmpty) {
       throw const FormatException('عنصر بلا معرّف');
+    }
+
+    factory SummaryItem.fromCloud(Map<String, dynamic> j) {
+      final createdAt = (j['created_at'] as num?)?.toInt();
+      return SummaryItem(
+        id: _stringOr(j['id'], DateTime.now().microsecondsSinceEpoch.toString()),
+        title: _stringOr(j['title'], 'ملخص جديد'),
+        summary: _string(j['summary']),
+        keyPoints: _stringList(j['key_points'] ?? j['keyPoints']),
+        terms: _termList(j['terms']),
+        language: _stringOr(j['language'], 'ar'),
+        createdAt: createdAt == null
+            ? DateTime.now()
+            : DateTime.fromMillisecondsSinceEpoch(createdAt * 1000),
+        transcript: _nullableString(j['transcript']),
+        study: j['study'] is Map
+            ? StudyMaterial.fromJson(Map<String, dynamic>.from(j['study'] as Map))
+            : null,
+      );
     }
     return SummaryItem(
       id: id,

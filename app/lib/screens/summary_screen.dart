@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../models/summary.dart';
 import '../services/storage_service.dart';
+import 'ask_screen.dart';
 import 'study_screen.dart';
 
 class SummaryScreen extends StatefulWidget {
@@ -55,10 +56,25 @@ class _SummaryScreenState extends State<SummaryScreen> {
             ],
           ),
         ),
-        floatingActionButton: FloatingActionButton.extended(
-          onPressed: _openStudy,
-          icon: const Icon(Icons.quiz_outlined),
-          label: Text(item.study == null ? 'راجع (بطاقات واختبار)' : 'راجع'),
+        floatingActionButton: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            FloatingActionButton.extended(
+              heroTag: 'ask-${widget.item.id}',
+              onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => AskScreen(item: item))),
+              icon: const Icon(Icons.question_answer_outlined),
+              label: const Text('اسأل'),
+            ),
+            const SizedBox(height: 10),
+            FloatingActionButton.extended(
+              heroTag: 'study-${widget.item.id}',
+              onPressed: _openStudy,
+              icon: const Icon(Icons.quiz_outlined),
+              label: Text(item.study == null ? 'راجع (بطاقات واختبار)' : 'راجع'),
+            ),
+          ],
         ),
         body: TabBarView(children: [
           _SummaryTab(text: item.summary),

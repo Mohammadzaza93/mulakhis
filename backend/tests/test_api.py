@@ -5,9 +5,12 @@ import sys
 os.environ["MOCK_AI"] = "1"
 os.environ["JWT_SECRET"] = "test-secret-0123456789abcdef0123456789"
 os.environ["REVENUECAT_WEBHOOK_AUTH"] = "rc-secret"
+os.environ["RATE_LIMIT_AUTH"] = "100000"
+os.environ["RATE_LIMIT_GENERAL"] = "100000"
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 import pytest  # noqa: E402
+import jwt  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
 import media  # noqa: E402
@@ -410,3 +413,84 @@ def test_audio_and_image_upstream_errors_are_502_and_free(client, auth, monkeypa
         == 502
     )
     assert client.get("/me", headers=headers).json()["used"] == 0
+
+
+# ---------- ميزات v0.3 ----------
+def test_oauth_login_google_mock(client):
+    token = jwt.encode({"email": "oauth@example.com", "sub": "google-sub-1"}, "x", algorithm="HS256")
+    r = client.post("/auth/oauth", json={"provider": "google", "id_token": token})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["email"] == "oauth@example.com"
+    assert body["token"]
+
+
+def test_password_reset_flow(client):
+    register(client, "reset@example.com", "oldpassword")
+    req = client.post("/auth/forgot-password", json={"email": "reset@example.com"})
+    assert req.status_code == 200
+    token = req.json()["dev_token"]
+    done = client.post("/auth/reset-password", json={"token": token, "new_password": "newpassword123"})
+    assert done.status_code == 200, done.text
+    old = client.post("/auth/login", json={"email": "reset@example.com", "password": "oldpassword"})
+    new = client.post("/auth/login", json={"email": "reset@example.com", "password": "newpassword123"})
+    assert old.status_code == 401
+    assert new.status_code == 200
+
+
+def test_delete_account(client):
+    data = register(client, "del@example.com", "password123")
+    headers = {'Authorization': 'Bearer ' + data['token']}
+    r = client.delete("/me", headers=headers)
+    assert r.status_code == 200
+    assert client.get("/me", headers=headers).status_code == 401
+
+
+def test_ask_endpoint(client, auth):
+    headers, _ = auth
+    r = client.post(
+        "/ask",
+        json={
+            "summary": "الخلية هي الوحدة الأساسية للحياة وتحتوي على نواة.",
+            "question": "ما الوحدة الأساسية للحياة؟",
+            "language": "ar",
+        },
+        headers=headers,
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["answer"]
+    assert "grounded" in body
+
+
+def test_library_crud_and_sync(client, auth):
+    headers, _ = auth
+    item = {
+        "id": "s-1",
+        "title": "ملخص الأحياء",
+        "summary": "الخلية هي الوحدة الأساسية للحياة.",
+        "key_points": ["الخلية وحدة الحياة"],
+        "terms": [{"term": "النواة", "definition": "تحمل المادة الوراثية"}],
+        "language": "ar",
+        "created_at": 100,
+        "updated_at": 100,
+    }
+    put = client.put("/library", json=item, headers=headers)
+    assert put.status_code == 200, put.text
+    assert put.json()["id"] == "s-1"
+
+    listing = client.get("/library", headers=headers)
+    assert listing.status_code == 200
+    assert len(listing.json()) == 1
+
+    synced = client.post(
+        "/library/sync",
+        json={"items": [{**item, "summary": "نسخة أحدث", "updated_at": 200}]},
+        headers=headers,
+    )
+    assert synced.status_code == 200
+    assert synced.json()[0]["summary"] == "نسخة أحدث"
+
+    deleted = client.delete("/library/s-1", headers=headers)
+    assert deleted.status_code == 200
+    assert client.get("/library", headers=headers).json() == []

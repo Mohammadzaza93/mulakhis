@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/summary.dart';
+import 'api_service.dart';
 
 /// تخزين محلي بسيط للمكتبة. في الإصدار التالي يُستبدل بقاعدة بيانات/مزامنة سحابية.
 class StorageService {
@@ -51,5 +52,12 @@ class StorageService {
   Future<void> remove(String id) async {
     final items = await load();
     await _write(items.where((e) => e.id != id).toList());
+  }
+
+  Future<List<SummaryItem>> syncWithCloud(ApiService api) async {
+    final local = await load();
+    final cloud = await api.syncLibrary(local);
+    await _write(cloud);
+    return cloud;
   }
 }

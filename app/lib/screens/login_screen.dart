@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../services/api_service.dart';
 import '../services/purchase_service.dart';
 import 'home_screen.dart';
+import 'reset_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -52,6 +55,63 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) setState(() => _error = 'حدث خطأ غير متوقع، حاول مرة أخرى.');
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+
+    Future<void> _oauthGoogle() async {
+      if (_loading) return;
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+      try {
+        final account = await GoogleSignIn().signIn();
+        final auth = await account?.authentication;
+        final token = auth?.idToken;
+        if (token == null || token.isEmpty) {
+          throw const ApiException('تعذّر الحصول على رمز Google.');
+        }
+        final user = await _api.oauthLogin('google', token);
+        PurchaseService.init(user.userId).catchError((_) {});
+        if (!mounted) return;
+        Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const HomeScreen()));
+      } on ApiException catch (e) {
+        if (mounted) setState(() => _error = e.message);
+      } catch (_) {
+        if (mounted) {
+          setState(() => _error = 'تعذّر تسجيل الدخول عبر Google.');
+        }
+      } finally {
+        if (mounted) setState(() => _loading = false);
+      }
+    }
+
+    Future<void> _oauthApple() async {
+      if (_loading) return;
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+      try {
+        final cred = await SignInWithApple.getAppleIDCredential(
+          scopes: const [AppleIDAuthorizationScopes.email],
+        );
+        final token = cred.identityToken;
+        if (token == null || token.isEmpty) {
+          throw const ApiException('تعذّر الحصول على رمز Apple.');
+        }
+        final user = await _api.oauthLogin('apple', token);
+        PurchaseService.init(user.userId).catchError((_) {});
+        if (!mounted) return;
+        Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const HomeScreen()));
+      } on ApiException catch (e) {
+        if (mounted) setState(() => _error = e.message);
+      } catch (_) {
+        if (mounted) setState(() => _error = 'تعذّر تسجيل الدخول عبر Apple.');
+      } finally {
+        if (mounted) setState(() => _loading = false);
+      }
     }
   }
 
@@ -161,6 +221,29 @@ class _LoginScreenState extends State<LoginScreen> {
                           ? 'لدي حساب بالفعل'
                           : 'ليس لدي حساب، إنشاء حساب جديد'),
                     ),
+                    if (!_register) ...[
+                      TextButton(
+                        onPressed: _loading
+                            ? null
+                            : () => Navigator.of(context).push(
+                                MaterialPageRoute(
+                                    builder: (_) =>
+                                        const ResetPasswordScreen())),
+                        child: const Text('نسيت كلمة المرور؟'),
+                      ),
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: _loading ? null : _oauthGoogle,
+                        icon: const Icon(Icons.g_mobiledata),
+                        label: const Text('المتابعة عبر Google'),
+                      ),
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: _loading ? null : _oauthApple,
+                        icon: const Icon(Icons.apple),
+                        label: const Text('المتابعة عبر Apple'),
+                      ),
+                    ],
                   ],
                 ),
               ),
