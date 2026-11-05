@@ -28,19 +28,18 @@ class ApiService {
 
   Map<String, String> get _authHeaders => {
         if (Session.I.token != null)
-          'Authorization': 'Bearer ${Session.I.token}',
+          'Authorization': 'Bearer ' + Session.I.token!,
       };
 
   Uri _uri(String path) => Uri.parse('${AppConfig.baseUrl}$path');
 
-  // ---------- الحساب ----------
   Future<UserInfo> login(String email, String password) =>
       _auth('/auth/login', email, password);
   Future<UserInfo> register(String email, String password) =>
       _auth('/auth/register', email, password);
 
   Future<UserInfo> _auth(String path, String email, String password) async {
-    final j = await _send(() => http
+    final j = await _sendMap(() => http
         .post(
           _uri(path),
           headers: {'Content-Type': 'application/json; charset=utf-8'},
@@ -52,17 +51,54 @@ class ApiService {
     return info;
   }
 
+  Future<UserInfo> oauthLogin(String provider, String idToken) async {
+    final j = await _sendMap(() => http
+        .post(
+          _uri('/auth/oauth'),
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
+          body: jsonEncode({'provider': provider, 'id_token': idToken}),
+        )
+        .timeout(_shortTimeout));
+    final info = UserInfo.fromJson(j);
+    await Session.I.save(j['token'] as String, info);
+    return info;
+  }
+
+  Future<void> requestPasswordReset(String email) async {
+    await _sendMap(() => http
+        .post(
+          _uri('/auth/forgot-password'),
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
+          body: jsonEncode({'email': email}),
+        )
+        .timeout(_shortTimeout));
+  }
+
+  Future<void> resetPassword(String token, String password) async {
+    await _sendMap(() => http
+        .post(
+          _uri('/auth/reset-password'),
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
+          body: jsonEncode({'token': token, 'new_password': password}),
+        )
+        .timeout(_shortTimeout));
+  }
+
   Future<UserInfo> fetchMe() async {
-    final j = await _send(() =>
+    final j = await _sendMap(() =>
         http.get(_uri('/me'), headers: _authHeaders).timeout(_shortTimeout));
     final info = UserInfo.fromJson(j);
     Session.I.user = info;
     return info;
   }
 
-  // ---------- التلخيص ----------
+  Future<void> deleteAccount() async {
+    await _sendMap(() =>
+        http.delete(_uri('/me'), headers: _authHeaders).timeout(_shortTimeout));
+  }
+
   Future<SummaryItem> summarizeText(String text, String language) async {
-    final j = await _send(() => http
+    final j = await _sendMap(() => http
         .post(
           _uri('/summarize/text'),
           headers: {
@@ -96,7 +132,7 @@ class ApiService {
           language);
 
   Future<SummaryItem> summarizeImages({
-    required List<MapEntry<String, List<int>>> images, // اسم الملف -> البايتات
+    required List<MapEntry<String, List<int>>> images,
     required String language,
   }) =>
       _upload(
@@ -109,7 +145,7 @@ class ApiService {
       );
 
   Future<StudyMaterial> generateStudy(SummaryItem item) async {
-    final j = await _send(() => http
+    final j = await _sendMap(() => http
         .post(
           _uri('/study/generate'),
           headers: {
@@ -127,14 +163,73 @@ class ApiService {
     final material = StudyMaterial.fromJson(j);
     if (material.isEmpty) {
       throw const ApiException(
-          'لم تنجح الخدمة في إعداد المراجعة، حاول مرة أخرى.');
+          '\u0644\u0645 \u062a\u0646\u062c\u062d \u0627\u0644\u062e\u062f\u0645\u0629 \u0641\u064a \u0625\u0639\u062f\u0627\u062f \u0627\u0644\u0645\u0631\u0627\u062c\u0639\u0629\u060c \u062d\u0627\u0648\u0644 \u0645\u0631\u0629 \u0623\u062e\u0631\u0649.');
     }
     return material;
   }
 
+  Future<Map<String, dynamic>> ask(SummaryItem item, String question) {
+    return _sendMap(() => http
+        .post(
+          _uri('/ask'),
+          headers: {
+            ..._authHeaders,
+            'Content-Type': 'application/json; charset=utf-8',
+          },
+          body: jsonEncode({
+            'summary': item.summary,
+            'transcript': item.transcript,
+            'question': question,
+            'language': item.language,
+          }),
+        )
+        .timeout(_timeout));
+  }
+
+  Future<List<SummaryItem>> fetchLibrary() async {
+    final list = await _sendList(() =>
+        http.get(_uri('/library'), headers: _authHeaders).timeout(_shortTimeout));
+    return list.map(SummaryItem.fromCloud).toList();
+  }
+
+  Future<SummaryItem> upsertLibraryItem(SummaryItem item) async {
+    final j = await _sendMap(() => http
+        .put(
+          _uri('/library'),
+          headers: {
+            ..._authHeaders,
+            'Content-Type': 'application/json; charset=utf-8',
+          },
+          body: jsonEncode(item.toCloudJson()),
+        )
+        .timeout(_shortTimeout));
+    return SummaryItem.fromCloud(j);
+  }
+
+  Future<void> deleteLibraryItem(String id) async {
+    await _sendMap(() =>
+        http.delete(_uri('/library/$id'), headers: _authHeaders).timeout(_shortTimeout));
+  }
+
+  Future<List<SummaryItem>> syncLibrary(List<SummaryItem> localItems) async {
+    final list = await _sendList(() => http
+        .post(
+          _uri('/library/sync'),
+          headers: {
+            ..._authHeaders,
+            'Content-Type': 'application/json; charset=utf-8',
+          },
+          body: jsonEncode({
+            'items': localItems.map((e) => e.toCloudJson()).toList(),
+          }),
+        )
+        .timeout(_timeout));
+    return list.map(SummaryItem.fromCloud).toList();
+  }
+
   Future<SummaryItem> _upload(
       String path, List<http.MultipartFile> files, String language) async {
-    final j = await _send(() async {
+    final j = await _sendMap(() async {
       final req = http.MultipartRequest('POST', _uri(path))
         ..headers.addAll(_authHeaders)
         ..fields['language'] = language
@@ -145,33 +240,47 @@ class ApiService {
     return SummaryItem.fromApi(j, language);
   }
 
-  // ---------- أدوات ----------
-  Future<Map<String, dynamic>> _send(
+  Future<Map<String, dynamic>> _sendMap(
       Future<http.Response> Function() call) async {
+    final raw = await _sendRaw(call);
+    if (raw is Map) return Map<String, dynamic>.from(raw);
+    throw const ApiException('\u0631\u062f \u063a\u064a\u0631 \u0645\u062a\u0648\u0642\u0639 \u0645\u0646 \u0627\u0644\u062e\u0627\u062f\u0645.');
+  }
+
+  Future<List<Map<String, dynamic>>> _sendList(
+      Future<http.Response> Function() call) async {
+    final raw = await _sendRaw(call);
+    if (raw is! List) throw const ApiException('\u0631\u062f \u063a\u064a\u0631 \u0645\u062a\u0648\u0642\u0639 \u0645\u0646 \u0627\u0644\u062e\u0627\u062f\u0645.');
+    final out = <Map<String, dynamic>>[];
+    for (final item in raw) {
+      if (item is Map) out.add(Map<String, dynamic>.from(item));
+    }
+    return out;
+  }
+
+  Future<Object?> _sendRaw(Future<http.Response> Function() call) async {
     try {
       final r = await call();
       final body = utf8.decode(r.bodyBytes, allowMalformed: true);
       if (r.statusCode >= 200 && r.statusCode < 300) {
-        final decoded = jsonDecode(body);
-        if (decoded is Map) return Map<String, dynamic>.from(decoded);
-        throw const ApiException('رد غير متوقع من الخادم.');
+        return jsonDecode(body);
       }
       throw ApiException(_errorMessage(r.statusCode, body), r.statusCode);
     } on ApiException {
       rethrow;
     } on TimeoutException {
       throw const ApiException(
-          'استغرقت المعالجة وقتاً طويلاً، حاول بملف أصغر.');
+          '\u0627\u0633\u062a\u063a\u0631\u0642\u062a \u0627\u0644\u0645\u0639\u0627\u0644\u062c\u0629 \u0648\u0642\u062a\u0627\u064b \u0637\u0648\u064a\u0644\u0627\u064b\u060c \u062d\u0627\u0648\u0644 \u0628\u0645\u0644\u0641 \u0623\u0635\u063a\u0631.');
     } on SocketException {
       throw const ApiException(
-          'تعذّر الاتصال بالخادم. تأكد من الإنترنت ثم أعد المحاولة.');
+          '\u062a\u0639\u0630\u0651\u0631 \u0627\u0644\u0627\u062a\u0635\u0627\u0644 \u0628\u0627\u0644\u062e\u0627\u062f\u0645. \u062a\u0623\u0643\u062f \u0645\u0646 \u0627\u0644\u0625\u0646\u062a\u0631\u0646\u062a \u062b\u0645 \u0623\u0639\u062f \u0627\u0644\u0645\u062d\u0627\u0648\u0644\u0629.');
     } on http.ClientException {
       throw const ApiException(
-          'تعذّر الاتصال بالخادم. تأكد من الإنترنت ثم أعد المحاولة.');
+          '\u062a\u0639\u0630\u0651\u0631 \u0627\u0644\u0627\u062a\u0635\u0627\u0644 \u0628\u0627\u0644\u062e\u0627\u062f\u0645. \u062a\u0623\u0643\u062f \u0645\u0646 \u0627\u0644\u0625\u0646\u062a\u0631\u0646\u062a \u062b\u0645 \u0623\u0639\u062f \u0627\u0644\u0645\u062d\u0627\u0648\u0644\u0629.');
     } on FormatException {
-      throw const ApiException('رد غير متوقع من الخادم.');
+      throw const ApiException('\u0631\u062f \u063a\u064a\u0631 \u0645\u062a\u0648\u0642\u0639 \u0645\u0646 \u0627\u0644\u062e\u0627\u062f\u0645.');
     } on TypeError {
-      throw const ApiException('رد غير متوقع من الخادم.');
+      throw const ApiException('\u0631\u062f \u063a\u064a\u0631 \u0645\u062a\u0648\u0642\u0639 \u0645\u0646 \u0627\u0644\u062e\u0627\u062f\u0645.');
     }
   }
 
@@ -179,10 +288,9 @@ class ApiService {
     try {
       final d = jsonDecode(body);
       if (d is Map && d['detail'] is String) return d['detail'] as String;
-      // أخطاء التحقق من FastAPI (422) تأتي كقائمة
-      if (d is Map && d['detail'] is List) return 'تحقق من البيانات المدخلة.';
+      if (d is Map && d['detail'] is List) return '\u062a\u062d\u0642\u0642 \u0645\u0646 \u0627\u0644\u0628\u064a\u0627\u0646\u0627\u062a \u0627\u0644\u0645\u062f\u062e\u0644\u0629.';
     } catch (_) {}
-    if (status == 401) return 'سجّل الدخول من جديد.';
+    if (status == 401) return '\u0633\u062c\u0651\u0644 \u0627\u0644\u062f\u062e\u0648\u0644 \u0645\u0646 \u062c\u062f\u064a\u062f.';
     return 'حدث خطأ ($status). حاول لاحقاً.';
   }
 }
