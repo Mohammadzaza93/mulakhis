@@ -72,6 +72,48 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> _syncCloud() async {
+    try {
+      final items = await _storage.syncWithCloud(ApiService());
+      if (!mounted) return;
+      setState(() => _items = items);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('تمت المزامنة')));
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
+
+  Future<void> _deleteAccount() async {
+    final ok = await showDialog<bool>(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('حذف الحساب'),
+            content: const Text('سيُحذف الحساب وبياناته نهائياً. هل أنت متأكد؟'),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('إلغاء')),
+              FilledButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('حذف')),
+            ],
+          ),
+        ) ??
+        false;
+    if (!ok) return;
+    try {
+      await ApiService().deleteAccount();
+      await _logout();
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final items = _items;
@@ -96,17 +138,21 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           PopupMenuButton<String>(
-            onSelected: (v) {
-              if (v == 'logout') _logout();
-              if (v == 'plan') _open(const PaywallScreen());
-            },
             itemBuilder: (_) => [
               if (user != null)
                 PopupMenuItem(enabled: false, child: Text(user.email)),
+              const PopupMenuItem(value: 'sync', child: Text('مزامنة المكتبة')),
               if (user != null && !user.isPro)
                 const PopupMenuItem(value: 'plan', child: Text('الاشتراك')),
+              const PopupMenuItem(value: 'delete-account', child: Text('حذف الحساب')),
               const PopupMenuItem(value: 'logout', child: Text('تسجيل الخروج')),
             ],
+            onSelected: (v) {
+              if (v == 'logout') _logout();
+              if (v == 'plan') _open(const PaywallScreen());
+              if (v == 'sync') _syncCloud();
+              if (v == 'delete-account') _deleteAccount();
+            },
           ),
         ],
       ),
