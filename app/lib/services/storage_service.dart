@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/summary.dart';
+import 'api_service.dart';
 
-/// تخزين محلي بسيط للمكتبة. في الإصدار التالي يُستبدل بقاعدة بيانات/مزامنة سحابية.
 class StorageService {
   static const _key = 'summaries_v1';
 
@@ -20,9 +20,7 @@ class StorageService {
         if (e is! Map) continue;
         try {
           items.add(SummaryItem.fromJson(Map<String, dynamic>.from(e)));
-        } catch (_) {
-          // عنصر تالف: نتخطاه بدل إخفاء المكتبة كلها.
-        }
+        } catch (_) {}
       }
       items.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       return items;
@@ -42,7 +40,6 @@ class StorageService {
     await _write([item, ...items]);
   }
 
-  /// يستبدل عنصراً موجوداً (بالمعرّف) محافظاً على ترتيبه.
   Future<void> update(SummaryItem item) async {
     final items = await load();
     await _write([for (final e in items) e.id == item.id ? item : e]);
@@ -51,5 +48,28 @@ class StorageService {
   Future<void> remove(String id) async {
     final items = await load();
     await _write(items.where((e) => e.id != id).toList());
+  }
+
+  Future<List<SummaryItem>> syncWithCloud(ApiService api) async {
+    final local = await load();
+    final remote = await api.fetchLibrary();
+    final map = <String, SummaryItem>{for (final e in local) e.id: e};
+    for (final e in remote) {
+      final existing = map[e.id];
+      if (existing == null || e.createdAt.isAfter(existing.createdAt)) {
+        map[e.id] = e;
+      }
+    }
+    for (final e in local) {
+      if (!remote.any((r) => r.id == e.id)) {
+        try {
+          await api.upsertLibraryItem(e);
+        } catch (_) {}
+      }
+    }
+    final merged = map.values.toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    await _write(merged);
+    return merged;
   }
 }
