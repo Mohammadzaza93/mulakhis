@@ -30,46 +30,65 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _reload() async {
     final items = await _storage.load();
     if (mounted) setState(() => _items = items);
-    try {
-      await ApiService().fetchMe();
-      if (mounted) setState(() {});
-    } catch (_) {
-      // بدون اتصال: نعرض آخر قيمة معروفة
-    }
   }
 
-  Future<void> _open(Widget screen) async {
-    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
-    _reload();
+  Future<void> _open(Widget page) async {
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
+    await _reload();
   }
 
   Future<void> _logout() async {
-    await PurchaseService.logOut();
     await Session.I.clear();
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const LoginScreen()), (_) => false);
   }
 
-  Future<void> _delete(SummaryItem item) async {
-    // نزيل العنصر من الحالة فوراً: Dismissible يجب ألا يبقى في الشجرة بعد طيّه.
-    if (_items != null) {
-      setState(() => _items = _items!.where((e) => e.id != item.id).toList());
+  Future<void> _syncCloud() async {
+    try {
+      final items = await _storage.syncWithCloud(ApiService());
+      if (!mounted) return;
+      setState(() => _items = items);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('\u062a\u0645\u062a \u0627\u0644\u0645\u0632\u0627\u0645\u0646\u0629')));
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('\u062a\u0639\u0630\u0651\u0631\u062a \u0627\u0644\u0645\u0632\u0627\u0645\u0646\u0629')));
     }
-    await _storage.remove(item.id);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('تم حذف الملخص'),
-        action: SnackBarAction(
-          label: 'تراجع',
-          onPressed: () async {
-            await _storage.add(item);
-            await _reload();
-          },
-        ),
-      ),
-    );
+  }
+
+  Future<void> _deleteAccount() async {
+    final ok = await showDialog<bool>(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('\u062d\u0630\u0641 \u0627\u0644\u062d\u0633\u0627\u0628'),
+            content: const Text(
+                '\u0633\u064a\u064f\u062d\u0630\u0641 \u0627\u0644\u062d\u0633\u0627\u0628 \u0648\u0628\u064a\u0627\u0646\u0627\u062a\u0647 \u0646\u0647\u0627\u0626\u064a\u0627\u064b. \u0647\u0644 \u0623\u0646\u062a \u0645\u062a\u0623\u0643\u062f\u061f'),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('\u0625\u0644\u063a\u0627\u0621')),
+              FilledButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('\u062d\u0630\u0641')),
+            ],
+          ),
+        ) ??
+        false;
+    if (!ok) return;
+    try {
+      await ApiService().deleteAccount();
+      await _logout();
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.message)));
+    }
   }
 
   @override
@@ -78,116 +97,80 @@ class _HomeScreenState extends State<HomeScreen> {
     final user = Session.I.user;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('مُلخِّص'),
+        title: const Text('\u0645\u064f\u0644\u062e\u0651\u0650\u0635'),
         actions: [
           if (user != null)
             Padding(
-              padding: const EdgeInsetsDirectional.only(end: 4),
-              child: ActionChip(
-                avatar: Icon(user.isPro ? Icons.workspace_premium : Icons.bolt,
-                    size: 18),
-                label: Text(user.isPro
-                    ? 'Pro · ${user.remaining}'
-                    : '${user.remaining}/${user.limit}'),
-                tooltip:
-                    user.isPro ? 'اشتراكك فعّال' : 'ملخصات متبقية هذا الشهر',
-                onPressed:
-                    user.isPro ? null : () => _open(const PaywallScreen()),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Center(
+                child: Text(
+                  user.isPro
+                      ? 'Pro'
+                      : '${user.used}/${user.limit}',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
               ),
             ),
           PopupMenuButton<String>(
-            onSelected: (v) {
-              if (v == 'logout') _logout();
-              if (v == 'plan') _open(const PaywallScreen());
-            },
             itemBuilder: (_) => [
               if (user != null)
                 PopupMenuItem(enabled: false, child: Text(user.email)),
+              const PopupMenuItem(value: 'sync', child: Text('\u0645\u0632\u0627\u0645\u0646\u0629 \u0627\u0644\u0645\u0643\u062a\u0628\u0629')),
               if (user != null && !user.isPro)
-                const PopupMenuItem(value: 'plan', child: Text('الاشتراك')),
-              const PopupMenuItem(value: 'logout', child: Text('تسجيل الخروج')),
+                const PopupMenuItem(value: 'plan', child: Text('\u0627\u0644\u0627\u0634\u062a\u0631\u0627\u0643')),
+              const PopupMenuItem(
+                  value: 'delete-account', child: Text('\u062d\u0630\u0641 \u0627\u0644\u062d\u0633\u0627\u0628')),
+              const PopupMenuItem(value: 'logout', child: Text('\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062e\u0631\u0648\u062c')),
             ],
+            onSelected: (v) {
+              if (v == 'logout') _logout();
+              if (v == 'plan') _open(const PaywallScreen());
+              if (v == 'sync') _syncCloud();
+              if (v == 'delete-account') _deleteAccount();
+            },
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _open(const NewSummaryScreen()),
         icon: const Icon(Icons.add),
-        label: const Text('ملخص جديد'),
+        label: const Text('\u0645\u0644\u062e\u0635 \u062c\u062f\u064a\u062f'),
       ),
       body: items == null
           ? const Center(child: CircularProgressIndicator())
           : items.isEmpty
-              ? const _EmptyState()
+              ? Center(
+                  child: Text(
+                    '\u0644\u0627 \u0645\u0644\u062e\u0635\u0627\u062a \u0628\u0639\u062f.\n\u0627\u0636\u063a\u0637 + \u0644\u0628\u062f\u0621 \u0623\u0648\u0644 \u0645\u0644\u062e\u0635.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  ),
+                )
               : ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 88),
                   itemCount: items.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 8),
                   itemBuilder: (context, i) {
                     final item = items[i];
-                    return Dismissible(
-                      key: ValueKey(item.id),
-                      direction: DismissDirection.horizontal,
-                      background: Container(
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.errorContainer,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        alignment: AlignmentDirectional.centerStart,
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: const Icon(Icons.delete_outline),
-                      ),
-                      onDismissed: (_) => _delete(item),
-                      child: Card(
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 6),
-                          title: Text(item.title,
-                              maxLines: 1, overflow: TextOverflow.ellipsis),
-                          subtitle: Text(item.summary,
-                              maxLines: 2, overflow: TextOverflow.ellipsis),
-                          trailing: Text(_formatDate(item.createdAt),
-                              style: Theme.of(context).textTheme.bodySmall),
-                          onTap: () => _open(SummaryScreen(item: item)),
+                    return Card(
+                      child: ListTile(
+                        title: Text(item.title,
+                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                        subtitle: Text(item.summary,
+                            maxLines: 2, overflow: TextOverflow.ellipsis),
+                        onTap: () => _open(SummaryScreen(item: item)),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete_outline),
+                          onPressed: () async {
+                            await _storage.remove(item.id);
+                            await _reload();
+                          },
                         ),
                       ),
                     );
                   },
                 ),
-    );
-  }
-
-  String _formatDate(DateTime d) => '${d.day}/${d.month}/${d.year}';
-}
-
-class _EmptyState extends StatelessWidget {
-  const _EmptyState();
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.auto_stories_outlined, size: 64, color: scheme.primary),
-            const SizedBox(height: 16),
-            Text('لا توجد ملخصات بعد',
-                style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Text(
-              'سجّل محاضرتك، أو صوّر صفحات، أو ارفع ملف PDF أو Word، وسيجهّز لك التطبيق ملخصاً ونقاطاً رئيسية.',
-              textAlign: TextAlign.center,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: scheme.onSurfaceVariant),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
