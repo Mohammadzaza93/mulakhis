@@ -38,11 +38,7 @@ class SummaryItem {
   final List<Term> terms;
   final String language;
   final DateTime createdAt;
-
-  /// النص المستخرج من الصوت أو الصور (إن وُجد).
   final String? transcript;
-
-  /// مواد المراجعة (بطاقات واختبار) بعد توليدها لأول مرة.
   final StudyMaterial? study;
 
   const SummaryItem({
@@ -69,7 +65,6 @@ class SummaryItem {
         study: material,
       );
 
-  /// يبني عنصراً من رد الخادم.
   factory SummaryItem.fromApi(Map<String, dynamic> j, String language) {
     return SummaryItem(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
@@ -113,25 +108,6 @@ class SummaryItem {
     if (id is! String || id.isEmpty) {
       throw const FormatException('عنصر بلا معرّف');
     }
-
-    factory SummaryItem.fromCloud(Map<String, dynamic> j) {
-      final createdAt = (j['created_at'] as num?)?.toInt();
-      return SummaryItem(
-        id: _stringOr(j['id'], DateTime.now().microsecondsSinceEpoch.toString()),
-        title: _stringOr(j['title'], 'ملخص جديد'),
-        summary: _string(j['summary']),
-        keyPoints: _stringList(j['key_points'] ?? j['keyPoints']),
-        terms: _termList(j['terms']),
-        language: _stringOr(j['language'], 'ar'),
-        createdAt: createdAt == null
-            ? DateTime.now()
-            : DateTime.fromMillisecondsSinceEpoch(createdAt * 1000),
-        transcript: _nullableString(j['transcript']),
-        study: j['study'] is Map
-            ? StudyMaterial.fromJson(Map<String, dynamic>.from(j['study'] as Map))
-            : null,
-      );
-    }
     return SummaryItem(
       id: id,
       title: _string(j['title']),
@@ -147,7 +123,25 @@ class SummaryItem {
     );
   }
 
-  /// نص جاهز للنسخ أو المشاركة.
+  factory SummaryItem.fromCloud(Map<String, dynamic> j) {
+    final createdAt = (j['created_at'] as num?)?.toInt();
+    return SummaryItem(
+      id: _stringOr(j['id'], DateTime.now().microsecondsSinceEpoch.toString()),
+      title: _stringOr(j['title'], 'ملخص جديد'),
+      summary: _string(j['summary']),
+      keyPoints: _stringList(j['key_points'] ?? j['keyPoints']),
+      terms: _termList(j['terms']),
+      language: _stringOr(j['language'], 'ar'),
+      createdAt: createdAt == null
+          ? DateTime.now()
+          : DateTime.fromMillisecondsSinceEpoch(createdAt * 1000),
+      transcript: _nullableString(j['transcript']),
+      study: j['study'] is Map
+          ? StudyMaterial.fromJson(Map<String, dynamic>.from(j['study'] as Map))
+          : null,
+    );
+  }
+
   String toPlainText() {
     final b = StringBuffer()
       ..writeln(title)

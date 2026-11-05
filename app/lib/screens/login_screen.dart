@@ -56,62 +56,62 @@ class _LoginScreenState extends State<LoginScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
 
-    Future<void> _oauthGoogle() async {
-      if (_loading) return;
-      setState(() {
-        _loading = true;
-        _error = null;
-      });
-      try {
-        final account = await GoogleSignIn().signIn();
-        final auth = await account?.authentication;
-        final token = auth?.idToken;
-        if (token == null || token.isEmpty) {
-          throw const ApiException('تعذّر الحصول على رمز Google.');
-        }
-        final user = await _api.oauthLogin('google', token);
-        PurchaseService.init(user.userId).catchError((_) {});
-        if (!mounted) return;
-        Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const HomeScreen()));
-      } on ApiException catch (e) {
-        if (mounted) setState(() => _error = e.message);
-      } catch (_) {
-        if (mounted) {
-          setState(() => _error = 'تعذّر تسجيل الدخول عبر Google.');
-        }
-      } finally {
-        if (mounted) setState(() => _loading = false);
+  Future<void> _oauthGoogle() async {
+    if (_loading) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final account = await GoogleSignIn().signIn();
+      final auth = await account?.authentication;
+      final token = auth?.idToken;
+      if (token == null || token.isEmpty) {
+        throw const ApiException('تعذّر الحصول على رمز Google.');
       }
+      final user = await _api.oauthLogin('google', token);
+      PurchaseService.init(user.userId).catchError((_) {});
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const HomeScreen()));
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _error = 'تعذّر تسجيل الدخول عبر Google.');
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
+  }
 
-    Future<void> _oauthApple() async {
-      if (_loading) return;
-      setState(() {
-        _loading = true;
-        _error = null;
-      });
-      try {
-        final cred = await SignInWithApple.getAppleIDCredential(
-          scopes: const [AppleIDAuthorizationScopes.email],
-        );
-        final token = cred.identityToken;
-        if (token == null || token.isEmpty) {
-          throw const ApiException('تعذّر الحصول على رمز Apple.');
-        }
-        final user = await _api.oauthLogin('apple', token);
-        PurchaseService.init(user.userId).catchError((_) {});
-        if (!mounted) return;
-        Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const HomeScreen()));
-      } on ApiException catch (e) {
-        if (mounted) setState(() => _error = e.message);
-      } catch (_) {
-        if (mounted) setState(() => _error = 'تعذّر تسجيل الدخول عبر Apple.');
-      } finally {
-        if (mounted) setState(() => _loading = false);
+  Future<void> _oauthApple() async {
+    if (_loading) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final cred = await SignInWithApple.getAppleIDCredential(
+        scopes: const [AppleIDAuthorizationScopes.email],
+      );
+      final token = cred.identityToken;
+      if (token == null || token.isEmpty) {
+        throw const ApiException('تعذّر الحصول على رمز Apple.');
       }
+      final user = await _api.oauthLogin('apple', token);
+      PurchaseService.init(user.userId).catchError((_) {});
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const HomeScreen()));
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } catch (_) {
+      if (mounted) setState(() => _error = 'تعذّر تسجيل الدخول عبر Apple.');
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
