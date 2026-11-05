@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../models/summary.dart';
 import '../services/storage_service.dart';
+import 'ask_screen.dart';
 import 'study_screen.dart';
 
 class SummaryScreen extends StatefulWidget {
@@ -19,10 +20,9 @@ class _SummaryScreenState extends State<SummaryScreen> {
   void _copy(BuildContext context) {
     Clipboard.setData(ClipboardData(text: item.toPlainText()));
     ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('تم نسخ الملخص')));
+        .showSnackBar(const SnackBar(content: Text('\u062a\u0645 \u0646\u0633\u062e \u0627\u0644\u0645\u0644\u062e\u0635')));
   }
 
-  /// بعد العودة من المراجعة نقرأ العنصر المحفوظ، فإن وُلّدت المواد لا تُولَّد ثانيةً.
   Future<void> _openStudy() async {
     await Navigator.of(context)
         .push(MaterialPageRoute(builder: (_) => StudyScreen(item: item)));
@@ -40,7 +40,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
           title: Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis),
           actions: [
             IconButton(
-              tooltip: 'نسخ',
+              tooltip: '\u0646\u0633\u062e',
               icon: const Icon(Icons.copy),
               onPressed: () => _copy(context),
             ),
@@ -48,17 +48,34 @@ class _SummaryScreenState extends State<SummaryScreen> {
           bottom: TabBar(
             isScrollable: hasTranscript,
             tabs: [
-              const Tab(text: 'الملخص'),
-              const Tab(text: 'النقاط'),
-              const Tab(text: 'المصطلحات'),
-              if (hasTranscript) const Tab(text: 'النص الأصلي'),
+              const Tab(text: '\u0627\u0644\u0645\u0644\u062e\u0635'),
+              const Tab(text: '\u0627\u0644\u0646\u0642\u0627\u0637'),
+              const Tab(text: '\u0627\u0644\u0645\u0635\u0637\u0644\u062d\u0627\u062a'),
+              if (hasTranscript) const Tab(text: '\u0627\u0644\u0646\u0635 \u0627\u0644\u0623\u0635\u0644\u064a'),
             ],
           ),
         ),
-        floatingActionButton: FloatingActionButton.extended(
-          onPressed: _openStudy,
-          icon: const Icon(Icons.quiz_outlined),
-          label: Text(item.study == null ? 'راجع (بطاقات واختبار)' : 'راجع'),
+        floatingActionButton: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            FloatingActionButton.extended(
+              heroTag: 'ask-${widget.item.id}',
+              onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => AskScreen(item: item))),
+              icon: const Icon(Icons.question_answer_outlined),
+              label: const Text('\u0627\u0633\u0623\u0644'),
+            ),
+            const SizedBox(height: 10),
+            FloatingActionButton.extended(
+              heroTag: 'study-${widget.item.id}',
+              onPressed: _openStudy,
+              icon: const Icon(Icons.quiz_outlined),
+              label: Text(item.study == null
+                  ? '\u0631\u0627\u062c\u0639 (\u0628\u0637\u0627\u0642\u0627\u062a \u0648\u0627\u062e\u062a\u0628\u0627\u0631)'
+                  : '\u0631\u0627\u062c\u0639'),
+            ),
+          ],
         ),
         body: TabBarView(children: [
           _SummaryTab(text: item.summary),
@@ -80,7 +97,7 @@ class _SummaryTab extends StatelessWidget {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: SelectableText(
-        text.isEmpty ? 'لا يوجد ملخص.' : text,
+        text.isEmpty ? '\u0644\u0627 \u064a\u0648\u062c\u062f \u0645\u0644\u062e\u0635.' : text,
         style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.9),
       ),
     );
@@ -93,7 +110,7 @@ class _PointsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (points.isEmpty) return const Center(child: Text('لا توجد نقاط.'));
+    if (points.isEmpty) return const Center(child: Text('\u0644\u0627 \u062a\u0648\u062c\u062f \u0646\u0642\u0627\u0637.'));
     return ListView.separated(
       padding: const EdgeInsets.all(20),
       itemCount: points.length,
@@ -125,7 +142,9 @@ class _TermsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (terms.isEmpty) return const Center(child: Text('لا توجد مصطلحات.'));
+    if (terms.isEmpty) {
+      return const Center(child: Text('\u0644\u0627 \u062a\u0648\u062c\u062f \u0645\u0635\u0637\u0644\u062d\u0627\u062a.'));
+    }
     return ListView.separated(
       padding: const EdgeInsets.all(20),
       itemCount: terms.length,
